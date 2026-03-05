@@ -11,10 +11,8 @@
    - 等待依赖安装完成
    - 程序自动启动
   
-   - 
+     
 <img width="1203" height="799" alt="截屏2026-03-05 14 52 25" src="https://github.com/user-attachments/assets/b69f3c24-e036-4b53-a167-ff0590849786" />
-
-<img width="1198" height="794" alt="截屏2026-03-05 14 53 12" src="https://github.com/user-attachments/assets/c75b9b73-7434-47b0-b81d-cb3ebe58738b" />
 
 
 
