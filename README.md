@@ -1,6 +1,17 @@
 # rekey
 > **OpenClaw API Switcher** 是一款专为 OpenClaw 设计的高级 API 模型切换与诊断工具，采用优雅的琉璃风格界面，让你轻松管理和切换多个 AI 模型提供商。
 
+1. **启动程序**
+   - **macOS**: 双击 `启动.command`
+   - **Windows**: 双击 `启动.bat`
+   - **Linux**: 运行 `./start.sh`
+
+2. **首次启动**
+   - 程序会自动检测并安装依赖
+   - 等待依赖安装完成
+   - 程序自动启动
+  
+   - 
 <img width="1203" height="799" alt="截屏2026-03-05 14 52 25" src="https://github.com/user-attachments/assets/b69f3c24-e036-4b53-a167-ff0590849786" />
 
 <img width="1198" height="794" alt="截屏2026-03-05 14 53 12" src="https://github.com/user-attachments/assets/c75b9b73-7434-47b0-b81d-cb3ebe58738b" />
@@ -67,7 +78,7 @@
 
 1. **下载程序**
    ```bash
-   git clone https://github.com/rekey-maker/openclaw-api-switcher.git
+   git clone https://github.com/rekey-maker/rekey.git
    cd openclaw-api-switcher
    ```
 
