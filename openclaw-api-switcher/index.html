@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw API Switcher</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 标题栏 - 左边距80px避开macOS系统按钮 -->
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <div class="titlebar-icon">🦞</div>
+      <h1>OpenClaw API Switcher <span class="version" id="app-version-display" onclick="if(event.shiftKey)openVersionModal()" style="cursor:default;">v...</span></h1>
+      <button class="btn btn-xs" id="btn-check-updates" style="margin-left: 10px; font-size: 10px; padding: 2px 8px; opacity: 0.7;">⬆️ 检查更新</button>
+    </div>
+    <div class="titlebar-right">
+      <span class="gateway-service-label" style="font-size: 11px; color: #94a3b8; margin-right: 8px;">Gateway 服务</span>
+      <div class="status-indicator" id="gateway-status-dot"></div>
+      <span class="status-text" id="gateway-status-text">检查中...</span>
+      <button class="btn btn-sm" id="btn-check-gateway" style="cursor: pointer;">
+        <span>🔄</span> 检查
+      </button>
+      <button class="btn btn-sm" id="btn-repair-gateway" style="cursor: pointer;">
+        <span>🔧</span> 修复
+      </button>
+      <button class="btn btn-sm" id="btn-open-openclaw-config" style="cursor: pointer;">
+        <span>📂</span> 目录
+      </button>
+    </div>
+  </div>
+
+  <!-- 顶部标签栏 -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="providers">
+      <span>🌐</span> Providers
+    </div>
+    <div class="tab" data-tab="diagnostics">
+      <span>🔧</span> 诊断
+    </div>
+    <div class="tab" data-tab="logs">
+      <span>📝</span> 日志
+    </div>
+    <div class="tab" data-tab="requests">
+      <span>📡</span> 请求追踪
+      <span class="tab-badge" id="request-badge">0</span>
+    </div>
+    <!-- 全局状态栏 -->
+    <div class="global-status-bar" id="global-status-bar">
+      <div class="status-content">
+        <span class="status-idle">就绪</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主内容区域 -->
+  <div class="main-content">
+    <!-- Providers 标签页 -->
+    <div class="tab-panel active" id="panel-providers">
+      <div class="split-layout">
+        <!-- 左侧 Provider 列表 -->
+        <div class="sidebar-panel">
+          <div class="panel-header">
+            <span class="panel-title">API Providers</span>
+            <button class="btn btn-sm btn-primary" id="btn-add-provider" data-status-hint="添加 API 供应商，支持主流服务商或本地模型">+ 添加</button>
+          </div>
+          <div class="panel-content scrollable" id="provider-list">
+            <!-- Provider 列表 -->
+          </div>
+        </div>
+        
+        <!-- 右侧模型选择 -->
+        <div class="content-panel">
+          <!-- 当前模型卡片 -->
+          <div class="glass-card current-model-card" style="flex-shrink: 0; min-height: 200px;">
+            <div class="card-header">
+              <div>
+                <span class="card-title">当前使用</span>
+                <span class="safe-switch-badge" id="safe-switch-status" data-status-hint="安全切换：切换供应商后需手动点击【应用配置】才生效，防止无效配置导致 Gateway 失效">🛡️ 安全切换已启用</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-apply-config" id="btn-apply-config" data-status-hint="应用配置：将当前选中的供应商配置同步到 OpenClaw，使配置生效" title="" style="display: none;">应用配置</button>
+                <span class="status-pill" id="current-status" data-status-hint="当前配置状态：显示程序当前是否已激活配置">就绪</span>
+              </div>
+            </div>
+            <div class="current-model-content">
+              <div class="current-model-icon" id="current-icon">🌐</div>
+              <div class="current-model-info">
+                <div class="current-model-label">ACTIVE MODEL</div>
+                <div class="current-model-name" id="current-model-name">未设置</div>
+                <div class="current-model-provider" id="current-provider">请选择一个 Provider 和 Model</div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+                  <div class="connection-status untested" id="connection-status" style="margin-top: 0; flex-shrink: 0;">
+                    <span class="dot"></span>
+                    <span id="connection-text" style="display: inline-block; min-width: 140px;">未测试</span>
+                  </div>
+                  <button class="btn btn-sm" id="btn-test-connection">测试连接</button>
+                  <button class="btn btn-sm" id="btn-normal-stop" data-desc="临时停用 OpenClaw，保留配置，可随时恢复" data-risk="medium">⏸ 立刻停止</button>
+                  <button class="btn btn-sm" id="btn-emergency-stop" data-desc="安全阻断 OpenClaw，清空配置并破坏 Token" data-risk="high"><span style="color: #ef4444; font-size: 10px; margin-right: 4px;">●</span>紧急停止</button>
+                  <button class="btn btn-sm btn-success" id="btn-normal-restore" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; display: none;" data-desc="恢复 OpenClaw 配置并继续使用">▶ 一键恢复</button>
+                  <button class="btn btn-sm btn-primary" id="btn-emergency-restore" style="display: none;" data-desc="从紧急备份恢复所有配置和 Token">🔄 一键恢复</button>
+                </div>
+                <div class="api-key-display" id="api-key-display" style="margin-top: 8px; display: none;">
+                  <span style="font-size: 11px; color: var(--text-secondary);">API Key: </span>
+                  <span id="current-api-key" style="font-family: monospace; font-size: 12px;">****</span>
+                  <button class="btn btn-sm" id="btn-toggle-key" style="margin-left: 8px; padding: 2px 8px;">👁️</button>
+                </div>
+              </div>
+              <div class="current-model-actions">
+                <div class="auto-status" id="auto-connection-status">
+                  <span class="status-dot" id="connection-status-dot"></span>
+                  <span class="status-text" id="connection-status-text">检测中...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 配置管理区域 - 两列布局 -->
+          <div class="config-management-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+            <!-- 迁移API配置卡片 -->
+            <div class="glass-card config-health-card">
+              <div class="card-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="card-title">📥 迁移API配置</span>
+                  <span class="health-status-badge" id="health-status-badge" style="display: none;"></span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-sm" id="btn-check-config-health" data-desc="检查是否有可迁移的API配置" data-risk="low">🔍 扫描配置</button>
+                  <button class="btn btn-sm btn-secondary" id="btn-manage-migration" data-desc="打开迁移向导进行配置迁移" data-risk="low" style="display: none;">⚙️ 迁移配置</button>
+                </div>
+              </div>
+              <div class="config-health-content" style="padding: 12px;">
+                <!-- 状态提示区域 -->
+                <div id="health-status-message" style="display: none; margin-bottom: 10px; padding: 8px; border-radius: 4px; font-size: 11px;"></div>
+                
+                <!-- 程序配置状态 -->
+                <div class="health-items" style="display: flex; flex-direction: column; gap: 8px;">
+                  <div class="health-item" id="health-program-config" style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                    <span class="health-dot" id="health-program-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); transition: all 0.3s;"></span>
+                    <span class="health-label" style="color: var(--text-secondary);">程序配置</span>
+                    <span class="health-value" id="health-program-value" style="margin-left: auto; color: var(--text-secondary); font-size: 11px;">检测中...</span>
+                  </div>
+                  <div class="health-item" id="health-openclaw-status" style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                    <span class="health-dot" id="health-openclaw-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); transition: all 0.3s;"></span>
+                    <span class="health-label" style="color: var(--text-secondary);">外部API配置</span>
+                    <span class="health-value" id="health-openclaw-value" style="margin-left: auto; color: var(--text-secondary); font-size: 11px;">检测中...</span>
+                  </div>
+                </div>
+                
+                <!-- 操作按钮区域（根据状态动态显示） -->
+                <div id="health-action-section" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                  <!-- 迁移按钮 -->
+                  <div id="migrate-section" style="display: none;">
+                    <div style="font-size: 11px; color: var(--info); margin-bottom: 8px;">💡 检测到可迁移的API配置</div>
+                    <button class="btn btn-sm btn-primary" id="btn-migrate-openclaw" data-desc="将 OpenClaw 中的配置迁移到程序配置中" data-risk="medium" style="width: 100%; margin-bottom: 8px;">📥 迁移到程序配置</button>
+                    <button class="btn btn-sm btn-secondary" id="btn-dismiss-migration" style="width: 100%; font-size: 10px;">我知道了，暂不迁移</button>
+                  </div>
+                  
+                  <!-- 清理按钮 -->
+                  <div id="cleanup-section" style="display: none;">
+                    <div style="font-size: 11px; color: var(--warning); margin-bottom: 8px;">⚠️ 发现异常API配置，建议清理</div>
+                    <div id="cleanup-provider-list" style="max-height: 100px; overflow-y: auto; margin-bottom: 8px; font-size: 10px; color: var(--text-secondary);"></div>
+                    <button class="btn btn-sm btn-warning" id="btn-cleanup-openclaw" data-desc="清理 OpenClaw 中的异常配置（已备份）" data-risk="high" style="width: 100%;">🧹 清理异常配置</button>
+                  </div>
+                </div>
+                
+                <!-- 操作结果提示 -->
+                <div id="health-action-result" style="margin-top: 12px; font-size: 11px; display: none; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px; border-left: 3px solid var(--success);"></div>
+              </div>
+            </div>
+
+            <!-- 配置检查卡片 - v2.7.5 重构：实时显示配置信息 -->
+            <div class="glass-card config-check-card">
+              <div class="card-header">
+                <span class="card-title">🔍 配置信息</span>
+              </div>
+              <div class="config-check-content" id="openclaw-config-display" style="padding: 12px;">
+                <!-- 配置内容将动态显示在这里 -->
+                <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
+                  正在加载配置...
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 会话管理卡片 - 从会话标签页迁移过来 -->
+          <div class="session-section">
+            <!-- Token 使用情况 -->
+            <div class="glass-card session-mini-card">
+              <div class="card-header">
+                <span class="panel-title">🧠 上下文使用</span>
+                <button class="btn btn-sm" id="btn-refresh-session-mini">会话刷新</button>
+              </div>
+              <div class="token-usage-compact">
+                <div class="usage-circle-mini" id="usage-circle-mini">
+                  <div class="usage-percentage-mini" id="usage-percentage-mini">0%</div>
+                </div>
+                <div class="usage-details-compact">
+                  <div class="usage-row">
+                    <span class="usage-label">Token</span>
+                    <span class="usage-value" id="token-count-mini">--</span>
+                  </div>
+                  <div class="usage-row">
+                    <span class="usage-label">运行</span>
+                    <span class="usage-value" id="uptime-mini">--</span>
+                  </div>
+                </div>
+                <div class="usage-warning-mini" id="usage-warning-mini" style="display: none;">
+                  ⚠️ 接近限制
+                </div>
+              </div>
+            </div>
+            
+            <!-- 会话操作 -->
+            <div class="glass-card session-mini-card">
+              <div class="card-header">
+                <span class="panel-title">⚡ 会话操作</span>
+                <span class="protection-badge-mini" id="protection-badge-mini">⏳ 60s</span>
+              </div>
+              <div class="session-ops-compact">
+                <button class="session-op-btn-mini" id="btn-clear-context-mini" data-status-hint="清理上下文：释放 Token 空间，保留当前会话">
+                  <span class="op-icon-mini">🧹</span>
+                  <span class="op-text">清理</span>
+                </button>
+                <button class="session-op-btn-mini" id="btn-new-session-mini" data-status-hint="新会话：开始一个全新的对话，不保留历史上下文">
+                  <span class="op-icon-mini">📄</span>
+                  <span class="op-text">新会话</span>
+                </button>
+                <button class="session-op-btn-mini danger" id="btn-restart-app-mini" data-status-hint="重启应用：重置所有状态并重新加载应用">
+                  <span class="op-icon-mini">🔄</span>
+                  <span class="op-text">重启</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 诊断标签页 -->
+    <div class="tab-panel" id="panel-diagnostics">
+      <div class="diagnostics-layout">
+        <!-- 左侧：系统检查和备份 -->
+        <div class="diagnostics-sidebar">
+          <!-- 系统检查 -->
+          <div class="glass-card diagnostic-small">
+            <div class="card-header">
+              <span class="panel-title">🔍 系统检查</span>
+              <button class="btn btn-sm" id="btn-view-config-details" data-status-hint="查看详细配置状态，包括程序配置、OpenClaw配置和当前AI模型信息">查看详情</button>
+            </div>
+            <div class="diagnostic-content">
+              <div class="check-list two-column">
+                <div class="check-item" id="check-config" data-status-hint="检查 OpenClaw 配置文件完整性">
+                  <span class="check-dot" id="check-config-dot"></span>
+                  <span class="check-label">配置文件</span>
+                  <span class="check-status" id="check-config-status">检查中...</span>
+                </div>
+                <div class="check-item" id="check-program" data-status-hint="检查本程序 API 供应商配置">
+                  <span class="check-dot" id="check-program-dot"></span>
+                  <span class="check-label">程序配置</span>
+                  <span class="check-status" id="check-program-status">检查中...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- API 备份管理 - 占用更大空间 -->
+          <div class="glass-card" id="api-backup-section" style="flex: 1; display: flex; flex-direction: column;">
+            <div class="card-header">
+              <span class="panel-title">💾 API 备份</span>
+              <div class="backup-management">
+                <button class="btn-management-menu" onclick="toggleBackupManagementMenu(event)" data-desc="备份管理操作">
+                  <span>⋯</span>
+                  <span>管理</span>
+                </button>
+                <div class="backup-management-dropdown" id="backup-management-menu" style="display: none;">
+                  <div class="menu-item" onclick="createInitBackup(); toggleBackupManagementMenu(event);" data-desc="立即备份所有供应商配置到 init-backups" data-risk="low">
+                    <span class="menu-icon">💾</span>
+                    <span>立即备份</span>
+                  </div>
+                  <div class="menu-divider"></div>
+                  <div class="menu-item" onclick="initializeOpenClawConfigWithConfirm(); toggleBackupManagementMenu(event);" data-desc="强制融合模板字段，初始化 OpenClaw 配置" data-risk="medium">
+                    <span class="menu-icon">🔄</span>
+                    <span>初始化配置</span>
+                  </div>
+                  <div class="menu-divider"></div>
+                  <div class="menu-item" onclick="exportAllBackups(); toggleBackupManagementMenu(event);" data-desc="将所有备份文件打包导出" data-risk="low">
+                    <span class="menu-icon">📤</span>
+                    <span>导出备份</span>
+                  </div>
+                  <div class="menu-item" onclick="importBackups(); toggleBackupManagementMenu(event);" data-desc="从备份包导入历史配置" data-risk="medium">
+                    <span class="menu-icon">📥</span>
+                    <span>导入备份</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 进度条 - 很细不占用空间 -->
+            <div id="backup-progress-container" style="width: 100%; height: 2px; background: rgba(255,255,255,0.1); opacity: 0; transition: opacity 0.3s;">
+              <div id="backup-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue)); transition: width 0.3s ease;"></div>
+            </div>
+            <div class="diagnostic-content" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+              <div class="backup-list scrollable" id="backup-list" style="flex: 1; overflow-y: auto; overflow-x: hidden; max-height: none;"></div>
+              <div class="backup-pagination" id="backup-pagination" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); flex-shrink: 0;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：Gateway 控制台 -->
+        <div class="glass-card gateway-console">
+          <div class="card-header">
+            <span class="panel-title">🔌 Gateway 控制台</span>
+            <!-- Gateway 服务状态 - API 代理连接状态 -->
+            <div class="gateway-status-bar header-status-bar">
+              <!-- 【v2.7.5 新增】Token 状态/修复按钮 - 胶囊型样式，和旁边状态指示器一致 -->
+              <div class="status-pill status-dynamic status-btn" id="btn-fix-gateway-token" data-desc="点击修复 Gateway Token 配置" data-risk="medium" onclick="handleGatewayTokenButton()">
+                <span class="status-icon" id="token-status-icon">🛡️</span>
+                <span class="status-text" id="token-status-text">Token 正常</span>
+              </div>
+              <div class="status-pill status-dynamic" id="diag-gateway-running" data-desc="Gateway 服务运行状态：作为本地 API 代理，转发请求到各 AI 提供商" data-risk="low">
+                <span class="status-icon" id="diag-running-icon">⏳</span>
+                <span class="status-text" id="diag-running-text">检测中</span>
+              </div>
+              <div class="status-pill status-dynamic" id="diag-gateway-connection" data-desc="API 连接状态：本地端口 18789 是否可访问" data-risk="low">
+                <span class="status-icon" id="diag-connection-icon">🔌</span>
+                <span class="status-text" id="diag-connection-text">端口 18789</span>
+              </div>
+              <div class="status-pill status-dynamic" id="diag-gateway-lastcheck" data-desc="最后检查时间" data-risk="low">
+                <span class="status-icon">🕐</span>
+                <span class="status-text" id="diag-lastcheck-text">--:--:--</span>
+              </div>
+              <button class="btn btn-sm btn-warning" id="btn-restart-gateway" data-desc="重启 Gateway 服务" data-risk="medium" style="margin-left: 10px;">🔄 重启</button>
+              <button class="btn btn-sm btn-danger" id="btn-install-gateway" data-desc="安装 Gateway 为系统服务" data-risk="high" style="margin-left: 10px; display: none;">⚠️ 安装服务</button>
+            </div>
+          </div>
+          <div class="diagnostic-content">
+            
+            <!-- 快捷命令面板 -->
+            <div class="commands-panel">
+              <div class="commands-panel-header">
+                <span class="panel-title">🚀 快捷命令</span>
+                <span class="panel-hint">悬停查看详情，点击执行</span>
+              </div>
+              <div class="commands-grid">
+                <!-- 左列 -->
+                <div class="commands-column">
+                  <!-- 🟢 基础 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #22c55e;">基础</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn" onclick="runGatewayCommand('gateway status')" data-cmd="openclaw gateway status" data-desc="查看 Gateway 服务运行状态" data-risk="low">status</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('health')" data-cmd="openclaw health" data-desc="从 Gateway 获取健康状态" data-risk="low">health</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('logs')" data-cmd="openclaw logs" data-desc="查看 Gateway 运行日志" data-risk="low">logs</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('--version')" data-cmd="openclaw --version" data-desc="查看当前 OpenClaw 版本" data-risk="low">version</button>
+                    </div>
+                  </div>
+                  <!-- 🟡 控制 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #eab308;">控制</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn cmd-start" onclick="startGatewayWithScript()" data-cmd="一键启动 Gateway" data-desc="前台运行 Gateway（调试/临时使用），关闭终端即停止。长期使用请先 install 安装服务" data-risk="medium" data-external="true">run</button>
+                      <button class="cmd-btn cmd-start" onclick="runDangerousCommand('gateway start')" data-cmd="openclaw gateway start" data-desc="慎用：单独使用 start 可能导致服务异常，建议直接使用 restart" data-risk="high">start</button>
+                      <button class="cmd-btn cmd-stop" onclick="runDangerousCommand('gateway stop')" data-cmd="openclaw gateway stop" data-desc="慎用：单独使用 stop 可能导致服务异常，建议直接使用 restart" data-risk="high">stop</button>
+                      <button class="cmd-btn cmd-restart" onclick="runGatewayCommand('gateway restart')" data-cmd="openclaw gateway restart" data-desc="推荐：安全地重启 Gateway 服务" data-risk="medium">restart</button>
+                    </div>
+                  </div>
+                  <!-- 🔵 查看 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #3b82f6;">查看</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn" onclick="runGatewayCommand('models list')" data-cmd="openclaw models list" data-desc="列出所有已配置的模型" data-risk="low">models</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('channels list')" data-cmd="openclaw channels list" data-desc="列出已配置的聊天通道（如飞书、Slack、Discord等）" data-risk="low">channels</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('agents list')" data-cmd="openclaw agents list" data-desc="查看已配置的 AI Agent 列表及其状态" data-risk="low">agents</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('dashboard')" data-cmd="openclaw dashboard" data-desc="打开 OpenClaw 的 Web 管理界面" data-risk="low">dashboard</button>
+                    </div>
+                  </div>
+                  <!-- 🔧 诊断 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #8b5cf6;">诊断</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn" onclick="runGatewayCommand('doctor')" data-cmd="openclaw doctor" data-desc="运行全面健康检查" data-risk="low">doctor</button>
+                      <button class="cmd-btn" onclick="runGatewayCommand('doctor --fix')" data-cmd="openclaw doctor --fix" data-desc="健康检查并自动修复问题" data-risk="medium">fix</button>
+                    </div>
+                  </div>
+                </div>
+                <!-- 右列 -->
+                <div class="commands-column">
+                  <!-- 🔧 管理 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #06b6d4;">管理</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn" onclick="runInteractiveCommand('configure')" data-cmd="openclaw configure" data-desc="交互式配置向导，配置模型、API密钥等，需在系统终端中运行" data-risk="medium" data-interactive="true">config</button>
+                      <button class="cmd-btn" onclick="runInteractiveCommand('onboard')" data-cmd="openclaw onboard" data-desc="交互式初始化向导，首次配置引导，需在系统终端中运行" data-risk="medium" data-interactive="true">onboard</button>
+                    </div>
+                  </div>
+                  <!-- ⚠️ 危险 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #ef4444;">危险</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn cmd-danger" onclick="runInteractiveCommand('gateway install')" data-cmd="openclaw gateway install" data-desc="安装 Gateway 为系统服务，需在系统终端中运行" data-risk="critical" data-interactive="true">install</button>
+                      <button class="cmd-btn cmd-danger" onclick="runInteractiveCommand('gateway install --force')" data-cmd="openclaw gateway install --force" data-desc="强制安装系统服务，需在系统终端中运行" data-risk="critical" data-interactive="true">install -f</button>
+                      <button class="cmd-btn cmd-danger" onclick="runInteractiveCommand('gateway uninstall')" data-cmd="openclaw gateway uninstall" data-desc="卸载 Gateway 系统服务，需在系统终端中运行" data-risk="critical" data-interactive="true">uninstall</button>
+                    </div>
+                  </div>
+                  <!-- 📦 安装 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #f97316;">安装/更新</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn cmd-install" onclick="runInteractiveCommand('update')" data-cmd="openclaw update" data-desc="交互式更新 openclaw 到最新版本，需在系统终端中运行" data-risk="high" data-interactive="true">update</button>
+                      <button class="cmd-btn cmd-install" onclick="runSystemCommand('npm update -g openclaw')" data-cmd="npm update -g openclaw" data-desc="使用 npm 更新 openclaw 到最新版本" data-risk="high">npm up</button>
+                      <button class="cmd-btn cmd-install" onclick="runSystemCommand('npm install -g openclaw@latest')" data-cmd="npm install -g openclaw@latest" data-desc="使用 npm 强制重装 openclaw 最新版" data-risk="high">npm inst</button>
+                    </div>
+                  </div>
+                  <!-- 🖥️ 启动终端 -->
+                  <div class="command-section">
+                    <span class="section-label" style="color: #10b981;">终端</span>
+                    <div class="section-buttons">
+                      <button class="cmd-btn cmd-terminal" onclick="openSystemTerminal()" data-cmd="启动系统终端" data-desc="根据系统自动启动对应终端 (Win: PowerShell/CMD, Linux: GNOME/KDE/Xfce 终端)" data-risk="low">启动终端</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 命令功能状态栏 -->
+            <div class="command-status-bar" id="command-status-bar">
+              <div class="status-content">
+                <code class="status-cmd">openclaw</code>
+                <span class="status-separator">|</span>
+                <span class="status-desc">悬停在上方命令按钮查看详情</span>
+                <span class="status-risk low">提示</span>
+              </div>
+            </div>
+            
+            <!-- 命令输入 -->
+            <div class="gateway-input-line">
+              <span class="prompt">$</span>
+              <input type="text" class="terminal-input" id="gateway-cmd-input" placeholder="输入命令，如: gateway status 或 logs" onfocus="this.placeholder=''" onblur="this.placeholder='输入命令，如: gateway status 或 logs'" onkeypress="if(event.key==='Enter')runCustomGatewayCommand()">
+              <button class="btn btn-sm btn-primary" onclick="runCustomGatewayCommand()">执行</button>
+            </div>
+            
+            <!-- 终端输出 - 支持语法高亮 -->
+            <div class="terminal-output scrollable" id="gateway-output" style="display: flex; flex-direction: column; justify-content: flex-start;">
+              <div class="terminal-welcome" style="margin-top: 0;">
+                <div class="term-line">
+                  <span class="term-success">✓</span>
+                  <span class="term-output">Gateway Console Ready</span>
+                </div>
+                <div class="term-line" style="margin-top: 4px;">
+                  <span class="term-dim">💡 点击上方快捷按钮执行命令，或在下方输入框输入自定义命令</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日志标签页 -->
+    <div class="tab-panel" id="panel-logs">
+      <div class="glass-card" style="height: calc(100% - 20px);">
+        <div class="card-header">
+          <div class="log-filter-tabs">
+            <button class="filter-tab active" data-filter="user" data-status-hint="显示所有用户操作及系统响应日志">
+              <span>📝</span> 全部操作
+            </button>
+            <button class="filter-tab" data-filter="error" data-status-hint="仅显示错误日志，便于排查问题">
+              <span>⚠️</span> 错误
+            </button>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-sm" id="btn-clear-logs">
+              <span>🗑️</span> 清空
+            </button>
+            <button class="btn btn-sm" id="btn-export-logs">
+              <span>📥</span> 导出
+            </button>
+            <button class="btn btn-sm" id="btn-open-logs-dir">
+              <span>📂</span> 日志
+            </button>
+          </div>
+        </div>
+        <div class="logs-container scrollable" id="logs-container">
+          <!-- 日志内容 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 请求追踪标签页 -->
+    <div class="tab-panel" id="panel-requests">
+      <div class="glass-card" style="height: calc(100% - 20px);">
+        <div class="card-header">
+          <div>
+            <span class="panel-title">📡 请求追踪</span>
+            <span class="subtitle" id="request-count">0 条记录 | 最多 50 条</span>
+          </div>
+          <div class="header-actions">
+            <input type="text" class="form-input" id="request-filter" placeholder="🔍 搜索 URL / 状态码..." style="width: 200px; margin-right: 8px; padding: 6px 12px; height: 32px;">
+            <button class="btn btn-sm" id="btn-clear-requests">
+              <span>🗑️</span> 清空
+            </button>
+          </div>
+        </div>
+        <div class="requests-table-header">
+          <div class="col-seq">序列 ID</div>
+          <div class="col-time">时间</div>
+          <div class="col-method">方法</div>
+          <div class="col-url">URL</div>
+          <div class="col-duration">耗时</div>
+          <div class="col-status">状态</div>
+        </div>
+        <div class="requests-container scrollable" id="requests-container">
+          <!-- 请求记录 -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 请求详情模态框 -->
+  <div class="modal" id="request-detail-modal">
+    <div class="modal-header">
+      <span class="modal-title">请求详情</span>
+      <button class="btn btn-icon" onclick="closeRequestDetail()">✕</button>
+    </div>
+    <div class="modal-content">
+      <div id="request-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- 添加 Provider 模态框 -->
+  <div class="modal-overlay" id="modal-overlay"></div>
+  <div class="modal" id="add-modal">
+    <div class="modal-header">
+      <span class="modal-title">添加 Provider</span>
+      <div class="edit-page-status-bar" id="add-modal-status-bar">
+        <span class="status-text">就绪</span>
+      </div>
+      <button class="btn btn-icon" id="btn-close-modal" data-status-hint="关闭此窗口（快捷键：Esc）">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="warning-banner">
+        <span class="warning-icon">⚠️</span>
+        <span class="warning-text">添加/修改 API 配置可能导致当前对话中断，请谨慎操作</span>
+      </div>
+      
+      <!-- API 分类选择 -->
+      <div class="api-category-tabs">
+        <div class="category-tab active" data-category="domestic">🇨🇳 国内 API</div>
+        <div class="category-tab" data-category="international">🌍 国际 API</div>
+        <div class="category-tab" data-category="local">🏠 本地/局域网</div>
+      </div>
+      
+      <!-- 预设提供商列表 -->
+      <div class="preset-section">
+        <div class="preset-label">选择提供商</div>
+        <div class="preset-grid" id="preset-grid"></div>
+      </div>
+      
+      <!-- 提供商配置表单 -->
+      <div class="provider-config-section" id="provider-config-section" style="display: none;">
+        <div class="preset-label">配置信息</div>
+        
+        <!-- 提供商信息展示 -->
+        <div class="selected-provider-info" id="selected-provider-info">
+          <span class="provider-icon" id="config-provider-icon">🌐</span>
+          <span class="provider-name" id="config-provider-name">请选择提供商</span>
+        </div>
+        
+        <!-- 【v2.7.5】自定义供应商名称 - 仅对自定义供应商显示 -->
+        <div class="form-group" id="custom-provider-name-group" style="display: none;">
+          <label class="form-label">供应商名称 <span class="form-hint">（自定义显示名称）</span></label>
+          <input type="text" class="form-input" id="config-custom-name" placeholder="例如：百度文心、我的私有 API...">
+          <div class="form-tip">🏷️ 此名称将显示在供应商列表中</div>
+        </div>
+        
+        <!-- Base URL -->
+        <div class="form-group">
+          <label class="form-label">API 地址 (Base URL)</label>
+          <input type="text" class="form-input" id="config-base-url" placeholder="https://api.example.com/v1">
+          <div class="form-tip" id="base-url-tip">� 默认地址，本地部署可修改为局域网 IP</div>
+        </div>
+        
+        <!-- API Key - 密码输入框 -->
+        <div class="form-group" id="api-key-group">
+          <label class="form-label">API Key <span class="form-hint">（支持复制粘贴）</span></label>
+          <div class="api-key-input-wrapper" style="position: relative;">
+            <input type="password" class="form-input api-key-input" id="config-api-key" placeholder="点击输入 API Key，格式如：sk-xxxxxxxxxxxxxxxx..." style="height: 40px; padding-right: 40px;">
+            <button type="button" class="toggle-password-btn" id="btn-toggle-api-key" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px; opacity: 0.7; transition: opacity 0.2s; z-index: 10;" title="显示/隐藏 API Key">👁️</button>
+          </div>
+          <div class="form-tip" id="api-key-tip">🔑 密钥仅保存在本地，不会上传到任何服务器</div>
+        </div>
+        
+        <!-- 模型选择区域 -->
+        <div class="form-group">
+          <label class="form-label">选择模型 <span class="form-hint">（可多选）</span></label>
+          <div class="model-select-grid" id="config-model-grid">
+            <div class="model-select-hint">请先选择提供商</div>
+          </div>
+        </div>
+        
+        <!-- 添加自定义模型 -->
+        <div class="form-group custom-model-section">
+          <label class="form-label">添加自定义模型 <span class="form-hint">（官方未发布或本地模型）</span></label>
+          <div class="custom-model-inputs">
+            <input type="text" class="form-input" id="custom-model-id" placeholder="模型ID (区分大小写)">
+            <input type="text" class="form-input" id="custom-model-name" placeholder="显示名称">
+            <input type="number" class="form-input" id="custom-model-context" placeholder="上下文长度" style="width: 100px;">
+            <button class="btn btn-sm" id="btn-add-custom-model">➕ 添加</button>
+          </div>
+          <div class="form-tip warning">⚠️ 重要：模型ID必须与API提供商支持的模型标识完全一致（区分大小写）</div>
+        </div>
+        
+        <!-- 测试连接按钮 -->
+        <div class="form-group test-connection-group">
+          <button id="btn-test-api-connection">
+            <span class="btn-icon">🔗</span> 测试连接
+          </button>
+          <span class="connection-status-text" id="connection-test-result"></span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-save-provider" disabled>保存配置</button>
+    </div>
+  </div>
+
+  <!-- 编辑 Provider 模态框 -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-header">
+      <span class="modal-title">编辑 Provider</span>
+      <div class="edit-page-status-bar" id="edit-modal-status-bar">
+        <span class="status-text">就绪</span>
+      </div>
+      <button class="btn btn-icon" id="btn-close-edit" data-status-hint="关闭此窗口（快捷键：Esc）">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="warning-banner">
+        <span class="warning-icon">⚠️</span>
+        <span class="warning-text">修改 API 配置可能导致当前对话中断，请谨慎操作</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Provider 名称</label>
+        <input type="text" class="form-input" id="edit-name" placeholder="Provider 名称">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Base URL</label>
+        <input type="text" class="form-input" id="edit-url" placeholder="Base URL">
+      </div>
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <div class="password-input-wrapper">
+          <input type="password" class="form-input" id="edit-key" placeholder="可选">
+          <button class="toggle-password" onclick="togglePassword('edit-key', this)">👁️</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">选择图标</label>
+        <div class="icon-selector" id="edit-icon-selector"></div>
+      </div>
+      
+      <!-- 模型选择区域 -->
+      <div class="form-group">
+        <label class="form-label">模型配置 <span class="form-hint">（点击管理模型）</span></label>
+        <div class="model-manage-grid" id="edit-model-grid">
+          <div class="model-select-hint">加载中...</div>
+        </div>
+      </div>
+      
+      <!-- 添加自定义模型 -->
+      <div class="form-group custom-model-section">
+        <label class="form-label">添加新模型 <span class="form-hint">（官方未发布或自定义模型）</span></label>
+        <div class="custom-model-inputs">
+          <input type="text" class="form-input" id="edit-custom-model-id" placeholder="模型ID (如: my-custom-model)">
+          <input type="text" class="form-input" id="edit-custom-model-name" placeholder="显示名称 (如: My Model)">
+          <input type="number" class="form-input" id="edit-custom-model-context" placeholder="上下文长度 (如: 128000)" style="width: 120px;">
+          <button class="btn btn-sm" id="btn-edit-add-model">➕ 添加模型</button>
+        </div>
+        <div class="form-tip">💡 提示：模型ID必须与API提供商支持的模型标识完全一致</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-cancel-edit">取消</button>
+      <button class="btn btn-primary" id="btn-save-edit">保存</button>
+    </div>
+  </div>
+
+  <!-- API异常警告对话框 -->
+  <div class="modal-overlay" id="api-warning-overlay"></div>
+  <div class="modal api-warning-modal" id="api-warning-modal">
+    <div class="modal-header">
+      <span class="modal-title">⚠️ API 连接异常</span>
+      <button class="btn btn-icon" id="btn-close-api-warning" data-status-hint="关闭此窗口">✕</button>
+    </div>
+    <div class="modal-content">
+      <!-- 当前状态信息 -->
+      <div class="warning-banner">
+        <span class="warning-icon">⚠️</span>
+        <div class="warning-content">
+          <div class="warning-title">当前 API 连接测试失败</div>
+          <div class="warning-details">
+            <span>供应商：<strong id="warning-provider-name">-</strong></span>
+            <span>状态：<strong id="warning-api-status">API 异常</strong></span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 可能原因 -->
+      <div class="info-section">
+        <div class="section-title">🔍 可能原因</div>
+        <ul class="reason-list">
+          <li>API Key 无效或已过期</li>
+          <li>网络连接异常</li>
+          <li>API 服务暂时不可用</li>
+        </ul>
+      </div>
+      
+      <!-- 风险提示 -->
+      <div class="risk-box">
+        <div class="risk-header">
+          <span class="risk-icon">🚨</span>
+          <span class="risk-title">风险提示</span>
+        </div>
+        <div class="risk-content">
+          <p>强行应用无效配置到 OpenClaw 将导致：</p>
+          <ul>
+            <li>Gateway 服务停止（红灯）</li>
+            <li>需要 30 秒后自动恢复或手动修复</li>
+            <li>在此期间无法使用 AI 服务</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btn-cancel-apply">取消</button>
+      <button class="btn btn-danger" id="btn-force-apply">仍要应用</button>
+    </div>
+  </div>
+
+  <!-- 自定义确认对话框 -->
+  <div class="modal-overlay" id="custom-confirm-overlay"></div>
+  <div class="modal custom-confirm-modal" id="custom-confirm-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="custom-confirm-title">⚠️ 提示</span>
+      <button class="btn btn-icon" id="btn-close-custom-confirm" data-status-hint="关闭此窗口">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="confirm-content" id="custom-confirm-content">
+        <!-- 动态内容 -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btn-custom-confirm-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-custom-confirm-ok">确定</button>
+    </div>
+  </div>
+
+  <!-- 配置状态总览面板 -->
+  <div class="modal-overlay" id="config-status-overlay"></div>
+  <div class="modal config-status-modal" id="config-status-modal" style="border-radius: 12px; border: 1px solid rgba(6, 182, 212, 0.2); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); overflow: hidden;">
+    <div class="modal-header" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(132, 204, 22, 0.05)); border-bottom: 1px solid rgba(6, 182, 212, 0.15); padding: 12px 16px;">
+      <span class="modal-title" style="color: #f5f5dc; font-size: 14px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">📋 配置状态总览</span>
+      <button class="btn btn-icon" id="btn-close-config-status" data-status-hint="关闭此窗口">✕</button>
+    </div>
+    <div class="modal-content" style="padding: 16px !important; background: var(--bg-card) !important;">
+      <div class="config-status-content" id="config-status-content" style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- 动态内容 -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btn-config-status-close">关闭</button>
+    </div>
+  </div>
+
+  <!-- 模块化重构后的脚本引用 -->
+  <!-- 1. 配置常量 -->
+  <script src="renderer-modules/config/constants.js"></script>
+  <!-- 2. 工具函数 -->
+  <script src="renderer-modules/utils/helpers.js"></script>
+  <!-- 3. 全局状态管理 -->
+  <script src="renderer-modules/modules/state.js"></script>
+  <!-- 4. UI组件模块 -->
+  <script src="renderer-modules/modules/uiComponents.js"></script>
+  <!-- 5. 供应商管理模块 -->
+  <script src="renderer-modules/modules/providerManager.js"></script>
+  <!-- 6. 日志管理模块 -->
+  <script src="renderer-modules/modules/logManager.js"></script>
+  <!-- 7. 备份管理模块 -->
+  <script src="renderer-modules/modules/backupManager.js"></script>
+  <!-- 8. 终端命令管理模块 -->
+  <script src="renderer-modules/modules/terminalManager.js"></script>
+  <!-- 9. Gateway管理模块 -->
+  <script src="renderer-modules/modules/gatewayManager.js"></script>
+  <!-- 10. 配置健康检查模块 -->
+  <script src="renderer-modules/modules/configHealthManager.js"></script>
+  <!-- 10.5 迁移向导模块 -->
+  <script src="renderer-modules/modules/migrationWizard.js"></script>
+  <!-- 11. 新API配置管理模块 - 必须在eventManager之前加载，因为eventManager依赖其中的函数 -->
+  <script src="renderer-modules/modules/newApiConfigManager.js"></script>
+  <!-- 12. 请求监控模块 -->
+  <script src="renderer-modules/modules/requestManager.js"></script>
+  <!-- 13. 会话信息管理模块 -->
+  <script src="renderer-modules/modules/sessionManager.js"></script>
+  <!-- 13.5 停止管理模块 - 处理普通停止和紧急停止功能 -->
+  <script src="renderer-modules/modules/stopManager.js"></script>
+  <!-- 14. 事件管理模块 - 必须在newApiConfigManager之后加载 -->
+  <script src="renderer-modules/modules/eventManager.js"></script>
+  <!-- 15. 初始化管理模块 - 最后加载，负责初始化所有模块 -->
+  <script src="renderer-modules/modules/initManager.js"></script>
+  <!-- 16. 主渲染脚本 (保留原有功能) -->
+  <script src="renderer.js"></script>
+
+  <!-- 备份详情弹窗 - 与备份列表同宽 -->
+  <div class="backup-detail-popup" id="backup-detail-popup" style="display: none; position: fixed; width: 280px; max-height: 85vh; background: var(--bg-card); border-radius: 12px; border: 1px solid rgba(6, 182, 212, 0.2); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); z-index: 99998; overflow: hidden;">
+    <div class="popup-header" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(132, 204, 22, 0.05)); border-bottom: 1px solid rgba(6, 182, 212, 0.15); display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 14px;">📋</span>
+        <span style="color: var(--text-primary); font-size: 13px; font-weight: 600;">备份详情</span>
+      </div>
+      <button onclick="closeBackupDetailPopup()" style="width: 26px; height: 26px; border-radius: 6px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #fb7185; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+    </div>
+    <div id="backup-detail-popup-content" style="padding: 16px; overflow-y: auto; max-height: calc(85vh - 56px);">
+      <!-- 动态内容 -->
+    </div>
+  </div>
+
+  <!-- 备注编辑弹窗 - 小巧精致，定位在按钮上方 -->
+  <div class="backup-note-modal" id="backup-note-modal" style="display: none; position: fixed; width: 220px; background: var(--bg-card); border-radius: 10px; border: 1px solid rgba(6, 182, 212, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(6, 182, 212, 0.1); z-index: 99999; overflow: hidden;">
+    <!-- 箭头指示器 -->
+    <div class="modal-arrow" style="position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid var(--bg-card); filter: drop-shadow(0 1px 1px rgba(6, 182, 212, 0.3));"></div>
+    <div class="modal-arrow-border" style="position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 9px solid rgba(6, 182, 212, 0.3); z-index: -1;"></div>
+    
+    <div class="modal-header" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(132, 204, 22, 0.08)); border-bottom: 1px solid rgba(6, 182, 212, 0.2); display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;">
+      <span class="modal-title" style="color: #c0c0d0; font-size: 11px; font-weight: 500;">📝 添加备注</span>
+      <button class="btn-icon" onclick="closeBackupNoteModal()" style="width: 20px; height: 20px; border-radius: 4px; background: rgba(233, 30, 99, 0.1); border: 1px solid rgba(233, 30, 99, 0.2); color: #fb7185; font-size: 10px; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+    </div>
+    <div class="modal-content" style="padding: 10px 12px 12px;">
+      <textarea class="backup-note-input" id="backup-note-input" placeholder="请输入备注（最多50字）..." maxlength="50" style="width: 100%; height: 60px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; background: rgba(0, 0, 0, 0.25); color: #a0a0b0; font-size: 11px; resize: none; outline: none; box-sizing: border-box; font-family: inherit; line-height: 1.4;"></textarea>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+        <div class="backup-note-count" id="backup-note-count" style="font-size: 10px; color: #666680;">0/50</div>
+        <div class="backup-note-actions" style="display: flex; gap: 6px;">
+          <button class="btn" onclick="closeBackupNoteModal()" style="padding: 4px 10px; font-size: 11px; color: #8888a0; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; cursor: pointer;">取消</button>
+          <button class="btn btn-primary" onclick="saveBackupNote()" style="padding: 4px 10px; font-size: 11px; background: linear-gradient(135deg, #22d3ee, #06b6d4); border: none; border-radius: 4px; color: #fff; cursor: pointer;">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 版本号更新对话框 -->
+  <div id="version-update-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 400px; padding: 24px;">
+      <div class="modal-header" style="margin-bottom: 20px;">
+        <h3 style="margin: 0; font-size: 16px; color: #e8e8f0;">🔧 更新版本号</h3>
+        <button class="close-btn" onclick="closeVersionModal()" style="background: none; border: none; color: #8888a0; font-size: 20px; cursor: pointer;">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 12px; color: #8888a0; margin-bottom: 6px;">当前版本</label>
+          <div id="current-version-display" style="font-size: 14px; color: #84cc16; font-weight: 600;">v...</div>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; font-size: 12px; color: #8888a0; margin-bottom: 6px;">新版本号</label>
+          <input type="text" id="new-version-input" placeholder="例如: 2.3.0" style="width: 100%; padding: 10px 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #e8e8f0; font-size: 14px; box-sizing: border-box;">
+          <div style="font-size: 11px; color: #666680; margin-top: 6px;">格式: x.y.z (如 2.3.0)</div>
+        </div>
+        <div style="background: rgba(255, 255, 255, 0.03); border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+          <div style="font-size: 11px; color: #8888a0; margin-bottom: 8px;">将更新以下文件:</div>
+          <div style="font-size: 11px; color: #666680; line-height: 1.6;">
+            • index.html<br>
+            • main.js<br>
+            • package.json
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn" onclick="closeVersionModal()" style="padding: 8px 16px; font-size: 12px; color: #8888a0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; cursor: pointer;">取消</button>
+        <button class="btn btn-primary" onclick="updateVersion()" style="padding: 8px 16px; font-size: 12px; background: linear-gradient(135deg, #22d3ee, #06b6d4); border: none; border-radius: 6px; color: #fff; cursor: pointer;">确认更新</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 停止功能弹窗 ==================== -->
+
+  <!-- ==================== 停止确认弹窗 ==================== -->
+
+  <!-- 普通停止确认对话框 -->
+  <div class="modal-overlay" id="normal-stop-overlay" style="display: none;"></div>
+  <div class="modal stop-confirm-modal" id="normal-stop-modal" style="display: none; border-radius: 12px; border: 1px solid rgba(234, 179, 8, 0.3); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); overflow: hidden; max-width: 420px;">
+    <!-- 标题栏 - 黄色渐变 -->
+    <div class="modal-header" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(202, 138, 4, 0.08)); border-bottom: 1px solid rgba(234, 179, 8, 0.2); display: flex; align-items: center; justify-content: space-between; padding: 14px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+        </svg>
+        <span class="modal-title" style="color: #eab308; font-size: 14px; font-weight: 600;">确认停止</span>
+      </div>
+      <button class="close-btn" onclick="closeNormalStopModal()" style="background: rgba(233, 30, 99, 0.1); border: 1px solid rgba(233, 30, 99, 0.2); color: #fb7185; width: 26px; height: 26px; border-radius: 6px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+    </div>
+    <!-- 内容区域 -->
+    <div class="modal-content" style="padding: 20px; background: var(--bg-card);">
+      <!-- 警告卡片 -->
+      <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(202, 138, 4, 0.05)); border: 1px solid rgba(234, 179, 8, 0.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span style="color: #eab308; font-size: 14px; font-weight: 600;">即将临时停止 OpenClaw</span>
+        </div>
+      </div>
+      <!-- 操作说明 -->
+      <div style="margin-bottom: 16px;">
+        <div style="color: #8888a0; font-size: 12px; margin-bottom: 10px; font-weight: 500;">此操作将：</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #eab308; font-size: 14px;">●</span>
+            <span>临时断开 OpenClaw 与 AI 的连接</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #eab308; font-size: 14px;">●</span>
+            <span>保留所有配置信息（可随时恢复）</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #eab308; font-size: 14px;">●</span>
+            <span>停止 Gateway 服务</span>
+          </div>
+        </div>
+      </div>
+      <!-- 信息提示 -->
+      <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.15); border-radius: 8px; padding: 12px 14px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 14px; color: #22d3ee;">ℹ️</span>
+          <div style="color: #a0a0b0; font-size: 11px; line-height: 1.5;">
+            OpenClaw 将暂时无法使用，点击"恢复"可立即继续使用。
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 底部按钮 -->
+    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; background: var(--bg-card); border-top: 1px solid rgba(255, 255, 255, 0.05);">
+      <button class="btn" onclick="closeNormalStopModal()" style="padding: 8px 18px; font-size: 12px; color: #8888a0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; cursor: pointer; transition: all 0.2s;">取消</button>
+      <button class="btn" onclick="confirmNormalStop()" style="padding: 8px 18px; font-size: 12px; color: #eab308; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;">⏹ 确认停止</button>
+    </div>
+  </div>
+
+  <!-- 紧急停止确认对话框 -->
+  <div class="modal-overlay" id="emergency-stop-overlay" style="display: none;"></div>
+  <div class="modal stop-confirm-modal" id="emergency-stop-modal" style="display: none; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); overflow: hidden; max-width: 420px;">
+    <!-- 标题栏 - 红色渐变 -->
+    <div class="modal-header" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.08)); border-bottom: 1px solid rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: space-between; padding: 14px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 18px;">🛑</span>
+        <span class="modal-title" style="color: #ef4444; font-size: 14px; font-weight: 600;">确认紧急停止</span>
+      </div>
+      <button class="close-btn" onclick="closeEmergencyStopModal()" style="background: rgba(233, 30, 99, 0.1); border: 1px solid rgba(233, 30, 99, 0.2); color: #fb7185; width: 26px; height: 26px; border-radius: 6px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+    </div>
+    <!-- 内容区域 -->
+    <div class="modal-content" style="padding: 20px; background: var(--bg-card);">
+      <!-- 警告卡片 -->
+      <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(185, 28, 28, 0.05)); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span style="color: #ef4444; font-size: 14px; font-weight: 600;">安全警告</span>
+        </div>
+        <div style="color: #fb7185; font-size: 12px; line-height: 1.5;">
+          此操作将彻底阻断 OpenClaw！
+        </div>
+      </div>
+      <!-- 操作说明 -->
+      <div style="margin-bottom: 16px;">
+        <div style="color: #8888a0; font-size: 12px; margin-bottom: 10px; font-weight: 500;">此操作将：</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #ef4444; font-size: 14px;">●</span>
+            <span>清空所有供应商配置</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #ef4444; font-size: 14px;">●</span>
+            <span>清空所有认证信息（API Keys）</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #ef4444; font-size: 14px;">●</span>
+            <span>破坏 Gateway Token（使其失效）</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; color: #a0a0b0; font-size: 12px;">
+            <span style="color: #ef4444; font-size: 14px;">●</span>
+            <span>停止 Gateway 服务</span>
+          </div>
+        </div>
+      </div>
+      <!-- 安全提示 -->
+      <div style="background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 14px; color: #22d3ee;">🛡️</span>
+          <div style="color: #a0a0b0; font-size: 11px; line-height: 1.5;">
+            <strong style="color: #22d3ee;">配置已自动备份！</strong> 您的所有配置（包括 API Keys）已安全备份，可随时点击"一键恢复"还原。
+          </div>
+        </div>
+      </div>
+      <!-- 危险警告 -->
+      <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); border-radius: 8px; padding: 12px 14px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 14px; color: #ef4444;">⚠️</span>
+          <div style="color: #a0a0b0; font-size: 11px; line-height: 1.5;">
+            仅在 OpenClaw 出现异常行为时使用。恢复后需要重新启动 Gateway。
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 底部按钮 -->
+    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; background: var(--bg-card); border-top: 1px solid rgba(255, 255, 255, 0.05);">
+      <button class="btn" onclick="closeEmergencyStopModal()" style="padding: 8px 18px; font-size: 12px; color: #8888a0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; cursor: pointer; transition: all 0.2s;">取消</button>
+      <button class="btn" onclick="confirmEmergencyStop()" style="padding: 8px 18px; font-size: 12px; color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s;"><span style="color: #ef4444; font-size: 10px; margin-right: 4px;">●</span>确认紧急停止</button>
+    </div>
+  </div>
+
+  <!-- ==================== 普通停止执行进度弹窗 ==================== -->
+  <div class="restore-overlay" id="normal-stop-progress-overlay"></div>
+  <div class="restore-modal restore-progress-modal" id="normal-stop-progress-modal">
+    <div class="modal-header restore-header-progress">
+      <span class="modal-title">⏹ 正在执行普通停止</span>
+      <button class="btn btn-icon btn-close-restore" id="btn-normal-stop-close-x" disabled data-status-hint="停止进行中，无法关闭">✕</button>
+    </div>
+    <div class="modal-content restore-progress-scrollable">
+      <!-- 进度条 -->
+      <div class="restore-progress-container">
+        <div class="restore-progress-bar-bg">
+          <div class="restore-progress-bar-fill" id="normal-stop-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="restore-progress-text" id="normal-stop-progress-text">0%</div>
+      </div>
+
+      <!-- 当前步骤 -->
+      <div class="restore-current-step" id="normal-stop-current-step">准备停止...</div>
+
+      <!-- 日志区域 -->
+      <div class="restore-logs-container">
+        <div class="restore-logs-header">
+          <span class="restore-logs-title">停止日志</span>
+          <span class="restore-logs-status" id="normal-stop-logs-status">进行中</span>
+        </div>
+        <div class="restore-logs-content" id="normal-stop-logs-content">
+          <!-- 动态添加日志 -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer" style="justify-content: flex-end;">
+      <button class="btn btn-secondary" id="btn-normal-stop-progress" disabled>停止中...</button>
+    </div>
+  </div>
+
+  <!-- ==================== 紧急停止执行进度弹窗 ==================== -->
+  <div class="restore-overlay" id="emergency-stop-progress-overlay"></div>
+  <!-- ==================== 紧急停止执行进度弹窗 ==================== -->
+  <div class="restore-overlay" id="emergency-stop-progress-overlay"></div>
+  <div class="restore-modal restore-progress-modal" id="emergency-stop-progress-modal">
+    <div class="modal-header restore-header-emergency">
+      <span class="modal-title"><span style="color: #ef4444; font-size: 12px; margin-right: 4px;">●</span>正在执行紧急停止</span>
+      <button class="btn btn-icon btn-close-restore" id="btn-emergency-stop-close-x" disabled data-status-hint="停止进行中，无法关闭">✕</button>
+    </div>
+    <div class="modal-content restore-progress-scrollable">
+      <!-- 进度条 -->
+      <div class="restore-progress-container">
+        <div class="restore-progress-bar-bg">
+          <div class="restore-progress-bar-fill" id="emergency-stop-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="restore-progress-text" id="emergency-stop-progress-text">0%</div>
+      </div>
+
+      <!-- 当前步骤 -->
+      <div class="restore-current-step" id="emergency-stop-current-step">准备紧急停止...</div>
+
+      <!-- 日志区域 -->
+      <div class="restore-logs-container">
+        <div class="restore-logs-header">
+          <span class="restore-logs-title">停止日志</span>
+          <span class="restore-logs-status" id="emergency-stop-logs-status">进行中</span>
+        </div>
+        <div class="restore-logs-content" id="emergency-stop-logs-content">
+          <!-- 动态添加日志 -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer" style="justify-content: flex-end;">
+      <button class="btn btn-secondary" id="btn-emergency-stop-progress" disabled>停止中...</button>
+    </div>
+  </div>
+
+  <!-- ==================== 恢复流程弹窗 ==================== -->
+
+  <!-- 普通恢复确认弹窗 -->
+  <div class="restore-overlay" id="normal-restore-confirm-overlay"></div>
+  <div class="restore-modal restore-confirm-modal" id="normal-restore-confirm-modal">
+    <div class="modal-header restore-header-normal">
+      <span class="modal-title">▶ 确认恢复运行</span>
+      <button class="btn btn-icon btn-close-restore" data-status-hint="关闭此窗口">✕</button>
+    </div>
+    <div class="modal-content restore-confirm-scrollable">
+      <h3 class="restore-section-title">▶ 即将恢复 OpenClaw 运行</h3>
+      <p class="restore-section-desc">此操作将恢复之前的配置，Gateway 将自动检测并重启</p>
+      
+      <div class="restore-actions-compact">
+        <div class="restore-action-item">● 从临时备份恢复供应商配置</div>
+        <div class="restore-action-item">● 恢复 API Keys 和认证信息</div>
+        <div class="restore-action-item">● 等待 Gateway 自动重启（约 1-2 分钟）</div>
+        <div class="restore-action-item">● 恢复与 AI 的连接</div>
+      </div>
+
+      <div class="restore-time-box">
+        <div class="restore-time-header">⏱️ 预计恢复时间：约 1-2 分钟</div>
+        <div class="restore-time-hint">期间请不要关闭应用，Gateway 会自动检测配置变化并重启</div>
+        <div class="restore-steps-compact">
+          <span class="restore-step-tag">1.恢复配置(3秒)</span>
+          <span class="restore-step-tag">2.等待自动重启(60-120秒)</span>
+          <span class="restore-step-tag">3.验证连接(7秒)</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer">
+      <button class="btn btn-secondary" id="btn-normal-restore-cancel">取消</button>
+      <button class="btn btn-primary btn-restore-confirm" id="btn-normal-restore-confirm">▶ 确认恢复</button>
+    </div>
+  </div>
+
+  <!-- 紧急恢复确认弹窗 -->
+  <div class="restore-overlay" id="emergency-restore-confirm-overlay"></div>
+  <div class="restore-modal restore-confirm-modal" id="emergency-restore-confirm-modal">
+    <div class="modal-header restore-header-emergency">
+      <span class="modal-title">🔄 确认恢复配置</span>
+      <button class="btn btn-icon btn-close-restore" data-status-hint="关闭此窗口">✕</button>
+    </div>
+    <div class="modal-content restore-confirm-scrollable">
+      <h3 class="restore-section-title">🔄 即将恢复 OpenClaw 配置</h3>
+      <p class="restore-section-desc">此操作将从备份恢复所有配置，Gateway 将自动检测并重启</p>
+      
+      <div class="restore-actions-compact">
+        <div class="restore-action-item">● 从备份恢复所有供应商配置</div>
+        <div class="restore-action-item">● 恢复 API Keys 和认证信息</div>
+        <div class="restore-action-item">● 恢复 Gateway Token</div>
+        <div class="restore-action-item">● 等待 Gateway 自动重启（约 1-2 分钟）</div>
+      </div>
+
+      <div class="restore-time-box">
+        <div class="restore-time-header">⏱️ 预计恢复时间：约 1-2 分钟</div>
+        <div class="restore-time-hint">期间请不要关闭应用，Gateway 会自动检测配置变化并重启</div>
+        <div class="restore-steps-compact">
+          <span class="restore-step-tag">1.恢复配置(5秒)</span>
+          <span class="restore-step-tag">2.等待自动重启(60-120秒)</span>
+          <span class="restore-step-tag">3.验证连接(15秒)</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer">
+      <button class="btn btn-secondary" id="btn-emergency-restore-cancel">取消</button>
+      <button class="btn btn-primary btn-restore-confirm" id="btn-emergency-restore-confirm">🔄 确认恢复</button>
+    </div>
+  </div>
+
+  <!-- 恢复进度弹窗 -->
+  <div class="restore-overlay restore-progress-overlay" id="restore-progress-overlay"></div>
+  <div class="restore-modal restore-progress-modal" id="restore-progress-modal">
+    <div class="modal-header restore-header-progress">
+      <span class="modal-title" id="restore-progress-title">🔄 正在恢复 OpenClaw 配置</span>
+      <button class="btn btn-icon btn-close-restore" disabled data-status-hint="恢复进行中，无法关闭">✕</button>
+    </div>
+    <div class="modal-content restore-progress-scrollable">
+      <!-- 计时器 -->
+      <div class="restore-timer-container">
+        <div class="restore-timer-ring">
+          <div class="restore-timer-display" id="restore-timer">0:00</div>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="restore-progress-container">
+        <div class="restore-progress-bar-bg">
+          <div class="restore-progress-bar-fill" id="restore-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="restore-progress-text" id="restore-progress-text">0%</div>
+      </div>
+
+      <!-- 当前步骤 -->
+      <div class="restore-current-step" id="restore-current-step">准备恢复...</div>
+
+      <!-- 日志区域 -->
+      <div class="restore-logs-container">
+        <div class="restore-logs-header">
+          <span class="restore-logs-title">恢复日志</span>
+          <span class="restore-logs-status" id="restore-logs-status">进行中</span>
+        </div>
+        <div class="restore-logs-content" id="restore-logs-content">
+          <!-- 动态添加日志 -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer">
+      <button class="btn btn-secondary" id="btn-restore-progress" disabled>恢复中...</button>
+    </div>
+  </div>
+
+  <!-- 恢复检测弹窗 -->
+  <div class="restore-overlay" id="restore-verify-overlay"></div>
+  <div class="restore-modal restore-verify-modal" id="restore-verify-modal">
+    <div class="modal-header restore-header-verify">
+      <span class="modal-title">🔍 正在检测 OpenClaw 配置</span>
+      <button class="btn btn-icon btn-close-restore" disabled>✕</button>
+    </div>
+    <div class="modal-content restore-verify-content">
+      <!-- 计时器 -->
+      <div class="restore-timer-container restore-verify-timer">
+        <div class="restore-timer-display-small" id="restore-verify-timer">0:00</div>
+      </div>
+
+      <div class="restore-verify-title">正在等待 Gateway 启动...</div>
+
+      <!-- 检测项目列表 -->
+      <div class="restore-verify-list" id="restore-verify-list">
+        <!-- 动态添加检测项目 -->
+      </div>
+
+      <!-- 进度条 -->
+      <div class="restore-progress-container restore-verify-progress">
+        <div class="restore-progress-bar-bg">
+          <div class="restore-progress-bar-fill restore-verify-bar" id="restore-verify-bar" style="width: 0%;"></div>
+        </div>
+        <div class="restore-progress-text" id="restore-verify-text">0%</div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer">
+      <button class="btn btn-secondary" disabled>验证中...</button>
+    </div>
+  </div>
+
+  <!-- 恢复成功弹窗 -->
+  <div class="restore-overlay" id="restore-success-overlay"></div>
+  <div class="restore-modal restore-success-modal" id="restore-success-modal">
+    <div class="restore-success-header">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 16px;">✅</span>
+        <span class="modal-title">恢复成功</span>
+      </div>
+      <button class="btn btn-icon btn-close-restore" id="btn-close-success">✕</button>
+    </div>
+    <div class="restore-success-content">
+      <!-- 成功图标 -->
+      <div class="restore-success-icon">✓</div>
+
+      <div class="restore-success-title">OpenClaw 已成功恢复！</div>
+      <div class="restore-success-subtitle">所有检测项目均已通过</div>
+
+      <!-- 检测结果汇总 -->
+      <div class="restore-success-summary">
+        <div class="restore-summary-title">检测结果汇总：</div>
+        <div class="restore-summary-list" id="restore-success-list">
+          <!-- 动态添加检测结果 -->
+          <div class="restore-summary-item">
+            <span class="restore-summary-icon">✓</span>
+            <span>Gateway 状态</span>
+            <span class="restore-summary-status">正常</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="restore-summary-time" id="restore-success-time">总用时：0分0秒</div>
+    </div>
+    <div class="restore-success-footer">
+      <button class="btn-restore-success" id="btn-restore-success-ok">确定</button>
+    </div>
+  </div>
+
+  <!-- 恢复失败弹窗 -->
+  <div class="restore-overlay" id="restore-failure-overlay"></div>
+  <div class="restore-modal restore-failure-modal" id="restore-failure-modal">
+    <div class="restore-failure-header">
+      <span class="modal-title">Gateway 启动中</span>
+      <button class="btn btn-icon btn-close-restore" id="btn-close-failure">✕</button>
+    </div>
+    <div class="restore-failure-content">
+      <!-- 等待图标 -->
+      <div class="restore-failure-icon">⏳</div>
+
+      <div class="restore-failure-title">配置已恢复，等待 Gateway 启动</div>
+      <div class="restore-failure-subtitle">Gateway 正在加载配置，请稍候...</div>
+
+      <!-- 检测状态 -->
+      <div class="restore-failure-section">
+        <div class="restore-failure-section-title">当前状态</div>
+        <div class="restore-failure-error">
+          <span class="restore-failure-error-text" id="restore-failure-error">API 检测未通过，服务尚未完全恢复</span>
+        </div>
+      </div>
+
+      <!-- 可能的原因 -->
+      <div class="restore-failure-section">
+        <div class="restore-failure-section-title">可能的原因</div>
+        <ul class="restore-failure-reasons" id="restore-failure-reasons">
+          <li>Gateway 启动需要 1-2 分钟时间</li>
+          <li>配置文件已恢复，但 Gateway 还在启动中</li>
+          <li>请稍后重试或手动检查</li>
+        </ul>
+      </div>
+
+      <!-- 建议操作 -->
+      <div class="restore-failure-section">
+        <div class="restore-failure-section-title">建议操作</div>
+        <div class="restore-failure-suggestions" id="restore-failure-suggestions">
+          <div class="suggestion-item">
+            <span class="suggestion-num">1</span>
+            <span>等待 1-2 分钟后点击"重新检测"</span>
+          </div>
+          <div class="suggestion-item">
+            <span class="suggestion-num">2</span>
+            <span>如多次失败可尝试"自动修复"或"重装 Gateway"</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="restore-failure-footer">
+      <button class="btn-retry-verify" id="btn-restore-retry">🔄 重新检测</button>
+      <button class="btn-repair-gateway" id="btn-repair-gateway">🔧 自动修复</button>
+      <button class="btn-reinstall-gateway" id="btn-reinstall-gateway">🔥 重装 Gateway</button>
+      <button class="btn btn-secondary" id="btn-restore-failure-ok" style="display: none;">确定</button>
+    </div>
+  </div>
+
+  <!-- 【v2.7.5 新增】Gateway 修复进度弹窗 - 统一风格 - 注意：z-index 必须高于配置状态总览弹窗 (1000/1001) -->
+  <div class="restore-overlay" id="gateway-repair-overlay" style="z-index: 2000;"></div>
+  <div class="restore-modal restore-progress-modal" id="gateway-repair-modal" style="z-index: 2001;">
+    <div class="modal-header restore-header-progress">
+      <span class="modal-title" id="gateway-repair-header-title">🔧 正在修复 Gateway Token</span>
+      <button class="btn btn-icon btn-close-restore" id="btn-gateway-repair-close-x" disabled data-status-hint="修复进行中，无法关闭">✕</button>
+    </div>
+    <div class="modal-content restore-progress-scrollable">
+      <!-- 计时器 -->
+      <div class="restore-timer-container">
+        <div class="restore-timer-ring">
+          <div class="restore-timer-display" id="gateway-repair-timer">0:00</div>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="restore-progress-container">
+        <div class="restore-progress-bar-bg">
+          <div class="restore-progress-bar-fill" id="gateway-repair-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="restore-progress-text" id="gateway-repair-progress-text">0%</div>
+      </div>
+
+      <!-- 当前步骤 -->
+      <div class="restore-current-step" id="gateway-repair-current-step">准备修复...</div>
+
+      <!-- 日志区域 -->
+      <div class="restore-logs-container">
+        <div class="restore-logs-header">
+          <span class="restore-logs-title">修复日志</span>
+          <span class="restore-logs-status" id="gateway-repair-logs-status">进行中</span>
+        </div>
+        <div class="restore-logs-content" id="gateway-repair-logs-content">
+          <!-- 动态添加日志 -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer restore-footer" style="justify-content: flex-end;">
+      <button class="btn btn-secondary" id="btn-gateway-repair-close" disabled>修复中...</button>
+    </div>
+  </div>
+
+</body>
+</html>
