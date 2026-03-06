@@ -1128,7 +1128,7 @@ async function syncToOpenClaw(providerId, providerConfig, force = false) {
       apiKeyIsPlaceholder: apiKey === 'e',
       apiKeyIsEmpty: apiKey === ''
     });
-
+    
     if (apiKey && apiKey !== '' && apiKey !== 'e') {
       authProfiles.profiles[profileKey] = {
         type: 'api_key',

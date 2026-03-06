@@ -758,7 +758,7 @@ function setupNewApiConfigListeners() {
         renderPresetProviders();
         const configSection = document.getElementById('provider-config-section');
         if (configSection) configSection.style.display = 'none';
-        return; // 阻止后续处理
+        return;
       }
     }
 

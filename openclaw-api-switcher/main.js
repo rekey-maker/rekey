@@ -1671,20 +1671,29 @@ function createWindow() {
 // 创建托盘
 function createTray() {
   try {
-    // 创建1x1像素的彩色图标
-    const iconSize = 16;
-    // 使用 electron 原生方式创建图标
-    const img = nativeImage.createEmpty();
-    
-    // 尝试加载自定义图标，如果不存在则使用默认
     let trayIcon;
-    const iconPath = path.join(__dirname, 'icon.png');
     
-    if (fs.existsSync(iconPath)) {
-      trayIcon = nativeImage.createFromPath(iconPath);
+    // 尝试从 build 文件夹加载图标
+    const icon16Path = path.join(__dirname, 'build', 'tray-icon-16.png');
+    const icon32Path = path.join(__dirname, 'build', 'tray-icon-32.png');
+    
+    if (fs.existsSync(icon16Path)) {
+      // 使用生成的青柠绿圆点图标
+      trayIcon = nativeImage.createFromPath(icon16Path);
+      console.log('[Tray] Loaded icon from build/tray-icon-16.png');
+    } else if (fs.existsSync(icon32Path)) {
+      trayIcon = nativeImage.createFromPath(icon32Path);
+      console.log('[Tray] Loaded icon from build/tray-icon-32.png');
     } else {
-      // 创建一个简单的彩色圆点图标
-      trayIcon = nativeImage.createFromNamedImage('NSStatusItemPriorityRegular', [16, 16]);
+      // 备选方案：使用 icon.png 或系统默认图标
+      const iconPath = path.join(__dirname, 'icon.png');
+      if (fs.existsSync(iconPath)) {
+        trayIcon = nativeImage.createFromPath(iconPath);
+        console.log('[Tray] Loaded icon from icon.png');
+      } else {
+        trayIcon = nativeImage.createFromNamedImage('NSStatusItemPriorityRegular', [16, 16]);
+        console.log('[Tray] Using system default icon');
+      }
     }
     
     tray = new Tray(trayIcon.resize({ width: 16, height: 16 }));

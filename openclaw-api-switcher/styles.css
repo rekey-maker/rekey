@@ -957,6 +957,16 @@ body::after {
   max-width: 90vw;
 }
 
+/* 版本号更新弹窗 - 更紧凑的宽度 */
+#version-update-modal {
+  width: 360px;
+  max-width: 90vw;
+}
+
+#version-update-modal .modal-content {
+  padding: 20px;
+}
+
 /* 添加 Provider 模态框内部样式优化 */
 #add-modal .modal-content {
   padding: 16px;
@@ -1005,15 +1015,6 @@ body::after {
 
 #add-modal .preset-card .preset-name {
   font-size: 12px;
-}
-#add-modal .preset-card .preset-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-#add-modal .preset-card .preset-description {
-  font-size: 10px;
-  color: #8888a0;
 }
 
 #add-modal .form-group {

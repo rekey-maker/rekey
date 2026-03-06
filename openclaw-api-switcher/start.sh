@@ -1,29 +1,57 @@
 #!/bin/bash
 # OpenClaw API Switcher Launcher for Linux/macOS
 
+# 检测终端是否支持 Unicode/Emoji
+supports_unicode() {
+    # 检查 LANG 或 LC_ALL 是否包含 UTF-8
+    if [[ "${LANG}" == *"UTF-8"* ]] || [[ "${LANG}" == *"utf8"* ]] || [[ "${LC_ALL}" == *"UTF-8"* ]]; then
+        return 0
+    fi
+    # 检查 TERM 是否支持颜色（通常支持颜色的终端也支持 Unicode）
+    if [[ -n "$TERM" ]] && [[ "$TERM" != "dumb" ]] && [[ "$TERM" != "linux" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# 设置图标（根据终端支持情况）
+if supports_unicode; then
+    ICON_ERROR="❌"
+    ICON_ARROW="👉"
+    ICON_PACKAGE="📦"
+    ICON_ROCKET="🚀"
+    ICON_CHECK="✅"
+else
+    ICON_ERROR="[ERROR]"
+    ICON_ARROW="->"
+    ICON_PACKAGE="[INSTALL]"
+    ICON_ROCKET="[START]"
+    ICON_CHECK="[OK]"
+fi
+
 cd "$(dirname "$0")"
 
 # 检查 npm
 if ! command -v npm &> /dev/null; then
-    echo "❌ Error: npm not found. Please install Node.js"
-    echo "👉 https://nodejs.org/"
+    echo "${ICON_ERROR} Error: npm not found. Please install Node.js"
+    echo "${ICON_ARROW} https://nodejs.org/"
     exit 1
 fi
 
 # 安装依赖
 if [ ! -d "node_modules" ]; then
-    echo "📦 Installing dependencies..."
+    echo "${ICON_PACKAGE} Installing dependencies..."
     npm install
 fi
 
 # 【v2.7.5】启动应用（后台运行并脱离终端）
-echo "🚀 Starting OpenClaw API Switcher..."
+echo "${ICON_ROCKET} Starting OpenClaw API Switcher..."
 nohup npm start > /dev/null 2>&1 &
 disown
 
 # 等待应用启动
 sleep 2
-echo "✅ Application started"
+echo "${ICON_CHECK} Application started"
 
 # 【v2.7.5】如果是图形界面终端，尝试关闭
 if [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
