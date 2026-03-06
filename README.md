@@ -1,6 +1,11 @@
 # rekey
 > **OpenClaw API Switcher** 是一款专为 OpenClaw 设计的高级 API 模型切换与诊断工具，采用优雅的琉璃风格界面，让你轻松管理和切换多个 AI 模型提供商。
 
+### ⚠️ 重要：必须先安装 Node.js
+
+本应用基于 **Node.js** 和 **Electron** 构建，**必须先安装 Node.js 才能运行**！
+
+
 1. **启动程序**
    - **macOS**: 双击 `启动.command`
    - **Windows**: 双击 `启动.bat`
