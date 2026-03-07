@@ -89,8 +89,11 @@ function scanOpenClawConfigDir() {
     // 如果默认目录不存在，尝试通过 openclaw 命令获取配置目录
     const { execSync } = require('child_process');
     try {
-      // 尝试执行 openclaw 命令获取信息
-      const output = execSync('openclaw config dir 2>/dev/null || echo ~/.openclaw', { encoding: 'utf8', timeout: 3000 }).trim();
+      // 尝试执行 openclaw 命令获取信息（跨平台兼容）
+      const cmd = isWin 
+        ? 'openclaw config dir 2>nul || echo %USERPROFILE%\.openclaw'
+        : 'openclaw config dir 2>/dev/null || echo ~/.openclaw';
+      const output = execSync(cmd, { encoding: 'utf8', timeout: 3000 }).trim();
       if (output && fs.existsSync(output)) {
         addLog('info', `[OpenClaw] 通过命令扫描到配置目录: ${output}`, '', 'system');
         return { type: 'detected', root: output };
@@ -1241,7 +1244,7 @@ async function getGatewayStatus() {
       const checkPort = () => {
         const netCmd = isWin
           ? 'netstat -an | findstr "18789"'
-          : 'netstat -tlnp 2>/dev/null | grep "18789" || lsof -i :18789';
+          : 'netstat -tlnp 2>/dev/null | grep "18789" 2>/dev/null || lsof -i :18789 2>/dev/null';
         
         return new Promise((resolvePort) => {
           exec(netCmd, { windowsHide: true }, (error, stdout) => {
