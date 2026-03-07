@@ -367,8 +367,8 @@ const API_CONFIG_PATH = path.join(API_SWITCHER_DIR, 'api-config.json');
 // OpenClaw 配置路径
 const OPENCLAW_DIR = path.join(os.homedir(), '.openclaw');
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_DIR, 'openclaw.json');
-const OPENCLAW_MODELS_PATH = path.join(OPENCLAW_DIR, 'agents/main/agent/models.json');
-const OPENCLAW_AUTH_PATH = path.join(OPENCLAW_DIR, 'agents/main/agent/auth-profiles.json');
+const OPENCLAW_MODELS_PATH = path.join(OPENCLAW_DIR, 'agents', 'main', 'agent', 'models.json');
+const OPENCLAW_AUTH_PATH = path.join(OPENCLAW_DIR, 'agents', 'main', 'agent', 'auth-profiles.json');
 
 // OpenClaw 默认配置模板路径
 const OPENCLAW_DEFAULT_TEMPLATE_PATH = path.join(__dirname, 'config', 'templates', 'openclaw-default.json');
