@@ -992,6 +992,20 @@ async function executeRestoreFlow(type) {
         }
         console.log('[StopManager] 状态已重置:', JSON.stringify(stopState));
 
+        // 【关键修复】清除停止状态文件，避免重启后仍显示恢复按钮
+        try {
+          if (type === 'normal' && window.electronAPI?.clearTempBackup) {
+            await window.electronAPI.clearTempBackup();
+            console.log('[StopManager] 已清理临时备份文件');
+          }
+          if (type === 'emergency' && window.electronAPI?.clearEmergencyStopState) {
+            await window.electronAPI.clearEmergencyStopState();
+            console.log('[StopManager] 已清理紧急停止状态文件');
+          }
+        } catch (e) {
+          console.warn('[StopManager] 清理状态文件失败:', e);
+        }
+
         // 启用所有功能
         await enableAllFeaturesAfterRestore();
 
@@ -1744,7 +1758,7 @@ function showRestoreFailureModal(failureInfo) {
   const btnRetry = document.getElementById('btn-restore-retry');
   const btnViewLogs = document.getElementById('btn-view-logs');
   const btnReinstall = document.getElementById('btn-reinstall-gateway');
-  const btnRepair = document.getElementById('btn-repair-gateway');
+  const btnRepair = document.getElementById('btn-restore-repair-gateway');
 
   const closeHandler = () => {
     modal.classList.remove('show');

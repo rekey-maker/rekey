@@ -346,7 +346,7 @@ function renderBackupDetailPopupContent(backup) {
 
   // 备份位置
   html += `<div class="detail-row-with-label">`;
-  html += `<div class="detail-row-label backup-path-link" data-status-hint="点击在 Finder 中打开备份所在目录" onclick="openBackupFolder('${escapeHtml(backup.path)}')">`;
+  html += `<div class="detail-row-label backup-path-link" data-status-hint="点击在 Finder 中打开备份所在目录" onclick="openBackupFolder('${escapeHtmlAttr(backup.path)}')">`;
   html += `📁 备份位置`;
   html += `</div>`;
   html += `<div class="backup-path-text" style="color: rgba(255,255,255,0.4); font-size: 11px; word-break: break-all; line-height: 1.4;">${escapeHtml(backup.path)}</div>`;
@@ -375,7 +375,7 @@ function renderBackupDetailPopupContent(backup) {
   html += `<div class="detail-row-with-label">`;
   html += `<div class="detail-row-label">📝 备注</div>`;
   html += `<textarea class="note-input" id="backup-note-input" placeholder="点击输入备注，关闭后自动保存" maxlength="200" `;
-  html += `onchange="saveBackupNoteInline('${escapeHtml(backup.path)}', this.value)">${escapeHtml(noteValue)}</textarea>`;
+  html += `onchange="saveBackupNoteInline('${escapeHtmlAttr(backup.path)}', this.value)">${escapeHtml(noteValue)}</textarea>`;
   html += `</div>`;
 
   // 分隔线
@@ -383,10 +383,10 @@ function renderBackupDetailPopupContent(backup) {
 
   // 操作按钮 - 精致小巧
   html += `<div class="detail-actions-row" style="gap: 8px;">`;
-  html += `<button class="btn-action btn-restore-action" data-status-hint="恢复此备份：将备份中的配置恢复到程序中" onclick="restoreBackup('${escapeHtml(backup.path)}')" style="padding: 7px 12px; font-size: 11px;">`;
+  html += `<button class="btn-action btn-restore-action" data-status-hint="恢复此备份：将备份中的配置恢复到程序中" onclick="restoreBackup('${escapeHtmlAttr(backup.path)}')" style="padding: 7px 12px; font-size: 11px;">`;
   html += `<span>💾</span> 恢复此备份`;
   html += `</button>`;
-  html += `<button class="btn-action btn-delete-action" data-status-hint="删除此备份：永久删除此备份文件，不可恢复" onclick="deleteBackupFromPopup('${escapeHtml(backup.path)}')" style="padding: 7px 12px; font-size: 11px;">`;
+  html += `<button class="btn-action btn-delete-action" data-status-hint="删除此备份：永久删除此备份文件，不可恢复" onclick="deleteBackupFromPopup('${escapeHtmlAttr(backup.path)}')" style="padding: 7px 12px; font-size: 11px;">`;
   html += `<span>🗑️</span> 删除此备份`;
   html += `</button>`;
   html += `</div>`;
