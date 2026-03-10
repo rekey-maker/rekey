@@ -286,11 +286,21 @@ function getOpenClawCommand() {
 // 构建 spawn 参数（支持 WSL 和 Windows MJS）
 function buildOpenClawSpawnArgs(args) {
   const cmdInfo = getOpenClawCommand();
+  
+  // 【修复】获取 OpenClaw 目录作为 cwd
+  let cwd = null;
+  if (cmdInfo.type === 'win32-mjs' && cmdInfo.path) {
+    cwd = path.dirname(cmdInfo.path);
+  } else if (customOpenClawRoot) {
+    cwd = customOpenClawRoot;
+  }
+  
   if (cmdInfo.type === 'wsl') {
     return {
       command: 'wsl',
       args: ['openclaw', ...args],
-      shell: false
+      shell: false,
+      cwd: cwd
     };
   }
   // 【修复】Windows 上使用 node 运行 openclaw.mjs
@@ -298,13 +308,15 @@ function buildOpenClawSpawnArgs(args) {
     return {
       command: 'node',
       args: [cmdInfo.path, ...args],
-      shell: false
+      shell: false,
+      cwd: cwd
     };
   }
   return {
     command: typeof cmdInfo.path === 'string' ? cmdInfo.path : 'openclaw',
     args: args,
-    shell: isWin
+    shell: isWin,
+    cwd: cwd
   };
 }
 
@@ -1053,7 +1065,8 @@ async function repairGatewayService() {
     // 先执行 install
     const installSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'install']);
     const installOptions = {
-      shell: installSpawnInfo.shell !== false
+      shell: installSpawnInfo.shell !== false,
+      cwd: installSpawnInfo.cwd || undefined
     };
     // Windows 特有选项
     if (isWin) {
@@ -1080,7 +1093,8 @@ async function repairGatewayService() {
 
       const startSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'start']);
       const startOptions = {
-        shell: startSpawnInfo.shell !== false
+        shell: startSpawnInfo.shell !== false,
+        cwd: startSpawnInfo.cwd || undefined
       };
       // Windows 特有选项
       if (isWin) {
@@ -1134,7 +1148,8 @@ async function repairGatewayService() {
       // 继续尝试启动流程
       const startSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'start']);
       const startOptions = {
-        shell: startSpawnInfo.shell !== false
+        shell: startSpawnInfo.shell !== false,
+        cwd: startSpawnInfo.cwd || undefined
       };
       if (isWin) {
         startOptions.windowsHide = true;
@@ -1265,7 +1280,8 @@ async function getGatewayStatus() {
     const proc = spawn(spawnInfo.command, spawnInfo.args, {
       windowsHide: true,
       timeout: 8000,
-      shell: spawnInfo.shell
+      shell: spawnInfo.shell,
+      cwd: spawnInfo.cwd || undefined
     });
     
     proc.stdout?.on('data', (data) => {
@@ -1370,7 +1386,8 @@ async function execOpenClawCommand(args, timeout = 60000) {
     const proc = spawn(spawnInfo.command, spawnInfo.args, {
       windowsHide: true,
       shell: true,
-      timeout: timeout
+      timeout: timeout,
+      cwd: spawnInfo.cwd || undefined
     });
 
     proc.stdout?.on('data', (data) => {
@@ -1456,7 +1473,8 @@ async function stopGateway() {
     const stopSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'stop']);
     const stopProcess = spawn(stopSpawnInfo.command, stopSpawnInfo.args, {
       windowsHide: true,
-      shell: true
+      shell: true,
+      cwd: stopSpawnInfo.cwd || undefined
     });
 
     let stdout = '';
@@ -1537,7 +1555,8 @@ async function restartGateway() {
     const restartSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'restart']);
     spawn(restartSpawnInfo.command, restartSpawnInfo.args, {
       windowsHide: true,
-      shell: true
+      shell: true,
+      cwd: restartSpawnInfo.cwd || undefined
     });
     
     // 4. 并行检测（每 3 秒检测一次）
@@ -1578,7 +1597,8 @@ async function runDoctor() {
     const doctor = spawn(spawnInfo.command, spawnInfo.args, {
       windowsHide: true,
       shell: spawnInfo.shell,
-      timeout: 30000
+      timeout: 30000,
+      cwd: spawnInfo.cwd || undefined
     });
     
     let output = '';
@@ -5768,7 +5788,8 @@ ipcMain.handle('autoRepairGateway', async () => {
       const proc = spawn(spawnInfo.command, spawnInfo.args, {
         windowsHide: true,
         shell: spawnInfo.shell,
-        timeout: 30000
+        timeout: 30000,
+        cwd: spawnInfo.cwd || undefined
       });
       
       let stdout = '';
@@ -5798,7 +5819,8 @@ ipcMain.handle('autoRepairGateway', async () => {
       const proc = spawn(spawnInfo.command, spawnInfo.args, {
         windowsHide: true,
         shell: spawnInfo.shell,
-        timeout: 30000
+        timeout: 30000,
+        cwd: spawnInfo.cwd || undefined
       });
       
       let stdout = '';

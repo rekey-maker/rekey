@@ -1758,7 +1758,7 @@ function showRestoreFailureModal(failureInfo) {
   const btnRetry = document.getElementById('btn-restore-retry');
   const btnViewLogs = document.getElementById('btn-view-logs');
   const btnReinstall = document.getElementById('btn-reinstall-gateway');
-  const btnRepair = document.getElementById('btn-repair-gateway');
+  const btnRepair = document.getElementById('btn-restore-repair-gateway');
 
   const closeHandler = () => {
     modal.classList.remove('show');
