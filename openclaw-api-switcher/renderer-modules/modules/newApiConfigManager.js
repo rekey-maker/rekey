@@ -922,7 +922,8 @@ async function openNewProviderModalForEdit(providerName) {
       const customModels = savedModels.filter(sm => !presetProvider.models.some(pm => pm.id === sm.id));
       const mergedProvider = {
         ...presetProvider,
-        models: [...presetProvider.models, ...customModels]
+        models: [...presetProvider.models, ...customModels],
+        customModels: []  // 【修复】显式设置为空数组，避免 renderModelGrid 重复合并
       };
       renderModelGrid(mergedProvider);
     } else if (savedModels.length > 0) {
