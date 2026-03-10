@@ -283,13 +283,21 @@ function getOpenClawCommand() {
   return { type: 'unix', path: 'openclaw' };
 }
 
-// 构建 spawn 参数（支持 WSL）
+// 构建 spawn 参数（支持 WSL 和 Windows MJS）
 function buildOpenClawSpawnArgs(args) {
   const cmdInfo = getOpenClawCommand();
   if (cmdInfo.type === 'wsl') {
     return {
       command: 'wsl',
       args: ['openclaw', ...args],
+      shell: false
+    };
+  }
+  // 【修复】Windows 上使用 node 运行 openclaw.mjs
+  if (cmdInfo.type === 'win32-mjs') {
+    return {
+      command: 'node',
+      args: [cmdInfo.path, ...args],
       shell: false
     };
   }
@@ -4817,6 +4825,9 @@ async function checkOpenClawInstalled() {
     
     if (cmdInfo.type === 'wsl') {
       execSync('wsl openclaw --version', { timeout: 5000 });
+    } else if (cmdInfo.type === 'win32-mjs') {
+      // 【修复】Windows 上使用 node 运行 openclaw.mjs
+      execSync(`node "${cmdInfo.path}" --version`, { timeout: 5000, windowsHide: true });
     } else if (cmdInfo.type === 'win32') {
       execSync('openclaw --version', { timeout: 5000, windowsHide: true });
     } else {
@@ -5589,7 +5600,26 @@ ipcMain.handle('reinstallGateway', async () => {
     addLog('info', '[Gateway] 开始重新安装', {}, 'system');
     
     const { spawn } = require('child_process');
-    const child = spawn('openclaw', ['gateway', 'install'], {
+    
+    // 【修复】根据平台选择正确的命令
+    const cmdInfo = getOpenClawCommand();
+    let command;
+    let args;
+    
+    if (cmdInfo.type === 'win32-mjs') {
+      command = 'node';
+      args = [cmdInfo.path, 'gateway', 'install'];
+    } else if (cmdInfo.type === 'wsl') {
+      command = 'wsl';
+      args = ['openclaw', 'gateway', 'install'];
+    } else {
+      command = typeof cmdInfo.path === 'string' ? cmdInfo.path : 'openclaw';
+      args = ['gateway', 'install'];
+    }
+    
+    addLog('info', `[Gateway] 执行命令: ${command} ${args.join(' ')}`, {}, 'system');
+    
+    const child = spawn(command, args, {
       detached: true,
       stdio: 'ignore'
     });
