@@ -580,6 +580,10 @@ function setupGatewayHoverHints() {
   const gatewayStatusText = document.getElementById('gateway-status-text');
   const btnCheckGateway = document.getElementById('btn-check-gateway');
   const btnOpenConfig = document.getElementById('btn-open-openclaw-config');
+  
+  // 【修复】检测平台
+  const isWin = navigator.platform.toLowerCase().includes('win');
+  const defaultCmd = isWin ? 'node openclaw.mjs' : 'openclaw';
 
   // 系统检查标签 - 配置文件（OpenClaw 配置完整性）
   const configCheckLabel = document.querySelector('#check-config .check-label');
@@ -709,7 +713,7 @@ function setupDiagnosticStatusHints() {
 
   const handleGatewayRunningLeave = () => {
     commandStatusContent.innerHTML = `
-      <code class="status-cmd">openclaw</code>
+      <code class="status-cmd">${defaultCmd}</code>
       <span class="status-separator">|</span>
       <span class="status-desc">悬停在上方命令按钮查看详情</span>
       <span class="status-risk low">提示</span>
@@ -749,7 +753,7 @@ function setupDiagnosticStatusHints() {
 
   const handleGatewayConnectionLeave = () => {
     commandStatusContent.innerHTML = `
-      <code class="status-cmd">openclaw</code>
+      <code class="status-cmd">${defaultCmd}</code>
       <span class="status-separator">|</span>
       <span class="status-desc">悬停在上方命令按钮查看详情</span>
       <span class="status-risk low">提示</span>
@@ -779,7 +783,7 @@ function setupDiagnosticStatusHints() {
 
   const handleLastcheckLeave = () => {
     commandStatusContent.innerHTML = `
-      <code class="status-cmd">openclaw</code>
+      <code class="status-cmd">${defaultCmd}</code>
       <span class="status-separator">|</span>
       <span class="status-desc">悬停在上方命令按钮查看详情</span>
       <span class="status-risk low">提示</span>
@@ -823,7 +827,7 @@ function setupDiagnosticStatusHints() {
 
   const handleTokenStatusLeave = () => {
     commandStatusContent.innerHTML = `
-      <code class="status-cmd">openclaw</code>
+      <code class="status-cmd">${defaultCmd}</code>
       <span class="status-separator">|</span>
       <span class="status-desc">悬停在上方命令按钮查看详情</span>
       <span class="status-risk low">提示</span>
@@ -847,12 +851,20 @@ function setupCommandHints() {
 
   if (!statusBar || !statusContent) return;
 
+  // 【修复】检测平台
+  const isWin = navigator.platform.toLowerCase().includes('win');
+
   cmdButtons.forEach(btn => {
     btn.addEventListener('mouseenter', () => {
-      const cmd = btn.dataset.cmd || '';
+      let cmd = btn.dataset.cmd || '';
       const desc = btn.dataset.desc || '';
       const risk = btn.dataset.risk || 'low';
       const isInteractive = btn.dataset.interactive === 'true';
+
+      // 【修复】Windows 上显示正确的命令格式
+      if (isWin && cmd.startsWith('openclaw')) {
+        cmd = cmd.replace('openclaw', 'node openclaw.mjs');
+      }
 
       // 构建提示文本
       let html = '';
@@ -890,8 +902,10 @@ function setupCommandHints() {
   document.addEventListener('click', (e) => {
     const isCmdArea = e.target.closest('.gateway-console');
     if (!isCmdArea && statusBar.classList.contains('active')) {
+      // 【修复】根据平台显示默认命令
+      const defaultCmd = isWin ? 'node openclaw.mjs' : 'openclaw';
       statusContent.innerHTML = `
-        <code class="status-cmd">openclaw</code>
+        <code class="status-cmd">${defaultCmd}</code>
         <span class="status-separator">|</span>
         <span class="status-desc">悬停在上方命令按钮查看详情</span>
         <span class="status-risk low">提示</span>

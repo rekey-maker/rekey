@@ -50,8 +50,14 @@ async function runGatewayCommand(cmd) {
   const outputEl = document.getElementById('gateway-output');
   if (!outputEl) return;
 
-  // 清空输出框并显示命令
-  const displayCmd = cmd.startsWith('openclaw') ? cmd : 'openclaw ' + cmd;
+  // 【修复】先显示简化命令，等执行完成后再显示完整路径
+  const isWin = navigator.platform.toLowerCase().includes('win');
+  let displayCmd;
+  if (isWin) {
+    displayCmd = cmd.startsWith('openclaw') ? cmd.replace('openclaw', 'node openclaw.mjs') : 'node openclaw.mjs ' + cmd;
+  } else {
+    displayCmd = cmd.startsWith('openclaw') ? cmd : 'openclaw ' + cmd;
+  }
   outputEl.innerHTML = '<div class="term-line"><span class="term-prompt">$</span> <span class="term-command">' + escapeHtml(displayCmd) + '</span></div><div class="term-line term-dim">执行中...</div>';
   outputEl.scrollTop = 0;
 
@@ -74,7 +80,13 @@ async function runGatewayCommand(cmd) {
     outputEl.innerHTML += '<div class="term-line">' + outputHtml + '</div>';
     outputEl.innerHTML += '<div class="term-line term-dim" style="margin-top: 8px;">─ 执行完成 ─</div>';
 
-    const logCmd = cmd.startsWith('openclaw') ? cmd : 'openclaw ' + cmd;
+    // 【修复】根据平台显示正确的命令用于日志
+    let logCmd;
+    if (isWin) {
+      logCmd = cmd.startsWith('openclaw') ? cmd.replace('openclaw', 'node openclaw.mjs') : 'node openclaw.mjs ' + cmd;
+    } else {
+      logCmd = cmd.startsWith('openclaw') ? cmd : 'openclaw ' + cmd;
+    }
     addLog(result.success ? 'success' : 'info', 'Gateway命令: ' + logCmd, '', 'user');
 
     if (cmd.includes('start') || cmd.includes('stop') || cmd.includes('restart')) {
@@ -396,7 +408,16 @@ async function openSystemTerminal() {
  */
 async function runInteractiveCommand(command) {
   try {
-    const fullCommand = `openclaw ${command}`;
+    // 【修复】根据平台构建正确的命令
+    const isWin = navigator.platform.toLowerCase().includes('win');
+    let fullCommand;
+    if (isWin) {
+      // Windows 上使用 node openclaw.mjs
+      fullCommand = `node openclaw.mjs ${command}`;
+    } else {
+      // macOS/Linux 上使用 openclaw
+      fullCommand = `openclaw ${command}`;
+    }
     addLog('info', `正在终端中启动交互式命令: ${fullCommand}`, {}, 'user');
 
     // 使用主进程在终端中打开命令
