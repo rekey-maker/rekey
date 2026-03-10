@@ -1713,8 +1713,11 @@ function createWindow() {
     height: 800,
     minWidth: 1000,
     minHeight: 700,
+    // 【修复】根据平台设置标题栏样式
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 15, y: 15 } : undefined,
+    // Linux 上禁用默认标题栏，使用自定义标题栏
+    frame: isLinux ? false : true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -4651,23 +4654,42 @@ ipcMain.handle('open-system-terminal', async () => {
     } else {
       // Linux: 尝试常见终端
       const { exec } = require('child_process');
+      
+      // 【修复】获取 OpenClaw 目录（Linux 上通常是 ~/.openclaw）
+      let openclawDir = null;
+      try {
+        const { execSync } = require('child_process');
+        const configDir = execSync('openclaw config dir 2>/dev/null || echo ~/.openclaw', { 
+          encoding: 'utf8', 
+          timeout: 3000 
+        }).trim();
+        if (configDir && fs.existsSync(configDir)) {
+          openclawDir = path.dirname(configDir); // 获取父目录作为 OpenClaw 根目录
+        }
+      } catch (e) {
+        // 如果获取失败，使用默认路径
+        openclawDir = path.join(os.homedir(), '.openclaw');
+      }
+      
       const terminals = [
-        'gnome-terminal',
-        'konsole',
-        'xfce4-terminal',
-        'lxterminal',
-        'mate-terminal',
-        'terminator',
-        'alacritty',
-        'kitty',
-        'xterm'
+        { cmd: 'gnome-terminal', args: openclawDir ? `--working-directory="${openclawDir}"` : '' },
+        { cmd: 'konsole', args: openclawDir ? `--workdir "${openclawDir}"` : '' },
+        { cmd: 'xfce4-terminal', args: openclawDir ? `--working-directory="${openclawDir}"` : '' },
+        { cmd: 'lxterminal', args: openclawDir ? `--working-directory="${openclawDir}"` : '' },
+        { cmd: 'mate-terminal', args: openclawDir ? `--working-directory="${openclawDir}"` : '' },
+        { cmd: 'terminator', args: openclawDir ? `--working-directory="${openclawDir}"` : '' },
+        { cmd: 'alacritty', args: openclawDir ? `--working-directory "${openclawDir}"` : '' },
+        { cmd: 'kitty', args: openclawDir ? `--directory "${openclawDir}"` : '' },
+        { cmd: 'xterm', args: '' }
       ];
       
       for (const term of terminals) {
         try {
-          exec(`which ${term} && ${term}`, { timeout: 3000 });
-          addLog('success', `[Terminal] 已启动 ${term}`, '', 'system');
-          return { success: true, terminal: term, command: term };
+          exec(`which ${term.cmd}`, { timeout: 2000 });
+          const fullCommand = term.args ? `${term.cmd} ${term.args}` : term.cmd;
+          exec(fullCommand, { timeout: 3000 });
+          addLog('success', `[Terminal] 已启动 ${term.cmd}${openclawDir ? ` (目录: ${openclawDir})` : ''}`, '', 'system');
+          return { success: true, terminal: term.cmd, command: fullCommand };
         } catch (e) {
           continue;
         }
@@ -4739,20 +4761,38 @@ ipcMain.handle('open-system-terminal-with-command', async (event, command) => {
       return { success: true, terminal: 'Terminal', command: script };
     } else {
       // Linux: 尝试在常见终端中运行命令
+      // 【修复】获取 OpenClaw 目录
+      let openclawDir = null;
+      try {
+        const configDir = execSync('openclaw config dir 2>/dev/null || echo ~/.openclaw', { 
+          encoding: 'utf8', 
+          timeout: 3000 
+        }).trim();
+        if (configDir && fs.existsSync(configDir)) {
+          openclawDir = path.dirname(configDir);
+        }
+      } catch (e) {
+        openclawDir = path.join(os.homedir(), '.openclaw');
+      }
+      
       // 【v2.7.5】转义命令中的单引号，防止破坏 bash -c 结构
       const escapedCommand = command.replace(/'/g, "'\"'\"'");
+      const cdCommand = openclawDir ? `cd '${openclawDir}' && ` : '';
+      
       const terminals = [
-        { cmd: 'gnome-terminal', args: `-- bash -c '${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
-        { cmd: 'konsole', args: `-e bash -c '${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
-        { cmd: 'xfce4-terminal', args: `-e "bash -c '${escapedCommand}; echo 命令执行完成，按 Enter 键继续...; read'"` },
-        { cmd: 'xterm', args: `-e bash -c '${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` }
+        { cmd: 'gnome-terminal', args: `-- bash -c '${cdCommand}${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
+        { cmd: 'konsole', args: `-e bash -c '${cdCommand}${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
+        { cmd: 'xfce4-terminal', args: `-e "bash -c '${cdCommand}${escapedCommand}; echo 命令执行完成，按 Enter 键继续...; read'"` },
+        { cmd: 'alacritty', args: `-e bash -c '${cdCommand}${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
+        { cmd: 'kitty', args: `bash -c '${cdCommand}${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` },
+        { cmd: 'xterm', args: `-e bash -c '${cdCommand}${escapedCommand}; echo "命令执行完成，按 Enter 键继续..."; read'` }
       ];
 
       for (const term of terminals) {
         try {
           execSync(`which ${term.cmd}`, { timeout: 2000 });
           exec(`${term.cmd} ${term.args}`, { timeout: 3000 });
-          addLog('success', `[Terminal] 已在 ${term.cmd} 中启动命令: ${command}`, '', 'system');
+          addLog('success', `[Terminal] 已在 ${term.cmd} 中启动命令${openclawDir ? ` (目录: ${openclawDir})` : ''}: ${command}`, '', 'system');
           return { success: true, terminal: term.cmd, command: `${term.cmd} ${term.args}` };
         } catch (e) {
           continue;
