@@ -312,10 +312,11 @@ function buildOpenClawSpawnArgs(args) {
       cwd: cwd
     };
   }
+  // 【修复】Windows 上统一使用 shell: false，避免 CMD 窗口弹出
   return {
     command: typeof cmdInfo.path === 'string' ? cmdInfo.path : 'openclaw',
     args: args,
-    shell: isWin,
+    shell: false,
     cwd: cwd
   };
 }
@@ -1552,12 +1553,39 @@ async function restartGateway() {
     }, 1000);
     
     // 3. 执行 restart 命令（不等待完成）
+    // 【修复】Windows 上使用 exec 并设置 windowsHide，避免 CMD 窗口弹出
     const restartSpawnInfo = buildOpenClawSpawnArgs(['gateway', 'restart']);
-    spawn(restartSpawnInfo.command, restartSpawnInfo.args, {
-      windowsHide: true,
-      shell: true,
-      cwd: restartSpawnInfo.cwd || undefined
-    });
+    
+    if (isWin) {
+      // Windows: 使用 exec 并设置 windowsHide
+      const { exec } = require('child_process');
+      const restartCmd = restartSpawnInfo.shell 
+        ? `"${restartSpawnInfo.command}" ${restartSpawnInfo.args.join(' ')}`
+        : `${restartSpawnInfo.command} ${restartSpawnInfo.args.join(' ')}`;
+      
+      exec(restartCmd, {
+        windowsHide: true,
+        cwd: restartSpawnInfo.cwd || undefined
+      }, (error) => {
+        if (error) {
+          addLog('error', `[Gateway] restart 命令执行失败: ${error.message}`, '', 'system');
+        }
+      });
+    } else {
+      // macOS/Linux: 使用 spawn
+      const restartProc = spawn(restartSpawnInfo.command, restartSpawnInfo.args, {
+        windowsHide: true,
+        shell: restartSpawnInfo.shell,
+        cwd: restartSpawnInfo.cwd || undefined,
+        detached: true
+      });
+      
+      restartProc.on('error', (err) => {
+        addLog('error', `[Gateway] restart 命令执行失败: ${err.message}`, '', 'system');
+      });
+      
+      restartProc.unref();
+    }
     
     // 4. 并行检测（每 3 秒检测一次）
     checkInterval = setInterval(async () => {
