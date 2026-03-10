@@ -50,6 +50,23 @@ function escapeHtml(text) {
 }
 
 /**
+ * 转义HTML属性值（用于onclick等属性中）
+ * 除了转义HTML特殊字符外，还转义反斜杠，避免Windows路径中的\被当作转义字符
+ * @param {string} text - 原始文本
+ * @returns {string} 转义后的HTML属性安全文本
+ */
+function escapeHtmlAttr(text) {
+  if (!text) return '';
+  // 先进行HTML转义
+  const div = document.createElement('div');
+  div.textContent = text;
+  let escaped = div.innerHTML;
+  // 再转义反斜杠（在HTML属性中，反斜杠需要双重转义）
+  escaped = escaped.replace(/\\/g, '\\\\');
+  return escaped;
+}
+
+/**
  * 遮罩API Key（显示前4位和后4位）
  * @param {string} key - API Key
  * @returns {string} 遮罩后的Key
