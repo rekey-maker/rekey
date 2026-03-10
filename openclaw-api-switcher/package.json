@@ -9,12 +9,13 @@
   },
   "author": "OpenClaw",
   "license": "MIT",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "extract-zip": "^2.0.1",
+    "iconv-lite": "^0.7.2",
+    "ws": "^8.16.0"
+  },
   "devDependencies": {
     "electron": "^28.0.0"
-  },
-  "dependencies": {
-    "ws": "^8.16.0",
-    "archiver": "^7.0.1",
-    "extract-zip": "^2.0.1"
   }
 }

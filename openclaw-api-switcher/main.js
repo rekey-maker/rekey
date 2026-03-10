@@ -16,6 +16,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, exec } = require('child_process');
+const iconv = require('iconv-lite');
 
 // 读取应用版本号
 let APP_VERSION = '1.0.0';
@@ -89,11 +90,8 @@ function scanOpenClawConfigDir() {
     // 如果默认目录不存在，尝试通过 openclaw 命令获取配置目录
     const { execSync } = require('child_process');
     try {
-      // 尝试执行 openclaw 命令获取信息（跨平台兼容）
-      const cmd = isWin 
-        ? 'openclaw config dir 2>nul || echo %USERPROFILE%\.openclaw'
-        : 'openclaw config dir 2>/dev/null || echo ~/.openclaw';
-      const output = execSync(cmd, { encoding: 'utf8', timeout: 3000 }).trim();
+      // 尝试执行 openclaw 命令获取信息
+      const output = execSync('openclaw config dir 2>/dev/null || echo ~/.openclaw', { encoding: 'utf8', timeout: 3000 }).trim();
       if (output && fs.existsSync(output)) {
         addLog('info', `[OpenClaw] 通过命令扫描到配置目录: ${output}`, '', 'system');
         return { type: 'detected', root: output };
@@ -111,10 +109,80 @@ function scanOpenClawConfigDir() {
   }
 }
 
-// 扫描 OpenClaw 根目录（多平台）- 保留原函数用于兼容
+// 扫描 OpenClaw 程序根目录（多平台）
 function scanOpenClawRoot() {
-  // 现在直接返回配置目录
+  // 【修复】优先扫描 OpenClaw 程序目录，而不是配置目录
+  const homeDir = os.homedir();
+  
+  // Windows 上可能的安装位置
+  if (isWin) {
+    // 【修复】获取所有磁盘驱动器
+    const drives = getWindowsDrives();
+    const possibleRoots = [];
+    
+    // 为每个磁盘添加可能的安装路径
+    for (const drive of drives) {
+      possibleRoots.push(path.join(drive, 'openclaw'));
+      possibleRoots.push(path.join(drive, 'OpenClaw'));
+    }
+    
+    // 添加用户目录下的可能位置
+    possibleRoots.push(
+      path.join(homeDir, 'openclaw'),
+      path.join(homeDir, 'OpenClaw'),
+      path.join(homeDir, 'AppData', 'Local', 'openclaw'),
+      path.join(homeDir, 'AppData', 'Roaming', 'openclaw'),
+      'C:\\openclaw',
+      'C:\\OpenClaw'
+    );
+    
+    for (const root of possibleRoots) {
+      // 检查是否存在 openclaw.mjs 或 openclaw.exe
+      if (fs.existsSync(path.join(root, 'openclaw.mjs')) || 
+          fs.existsSync(path.join(root, 'openclaw.exe')) ||
+          fs.existsSync(path.join(root, 'openclaw.cmd'))) {
+        addLog('info', `[OpenClaw] 扫描到程序目录: ${root}`, '', 'system');
+        return { type: 'detected', root: root };
+      }
+    }
+  } else {
+    // macOS/Linux
+    const possibleRoots = [
+      '/usr/local/lib/openclaw',
+      '/opt/openclaw',
+      '/usr/lib/openclaw',
+      path.join(homeDir, 'openclaw'),
+      path.join(homeDir, '.local', 'lib', 'openclaw'),
+    ];
+    
+    for (const root of possibleRoots) {
+      if (fs.existsSync(path.join(root, 'openclaw.mjs')) || 
+          fs.existsSync(path.join(root, 'bin', 'openclaw'))) {
+        addLog('info', `[OpenClaw] 扫描到程序目录: ${root}`, '', 'system');
+        return { type: 'detected', root: root };
+      }
+    }
+  }
+  
+  // 如果找不到程序目录，回退到配置目录
+  addLog('info', `[OpenClaw] 未找到程序目录，使用配置目录`, '', 'system');
   return scanOpenClawConfigDir();
+}
+
+// 【新增】获取 Windows 所有磁盘驱动器
+function getWindowsDrives() {
+  try {
+    const { execSync } = require('child_process');
+    const output = execSync('wmic logicaldisk get name', { encoding: 'utf8' });
+    const drives = output.split('\n')
+      .map(line => line.trim())
+      .filter(line => /^[A-Z]:$/.test(line));
+    addLog('info', `[OpenClaw] 检测到磁盘: ${drives.join(', ')}`, '', 'system');
+    return drives;
+  } catch (e) {
+    // 如果 wmic 失败，返回默认的 C: 和 D:
+    return ['C:', 'D:'];
+  }
 }
 
 // 获取 OpenClaw 根目录
@@ -161,6 +229,12 @@ function getOpenClawExecutableFromRoot(rootInfo) {
       if (fs.existsSync(exePath)) {
         return { type: 'win32', path: exePath };
       }
+    }
+    
+    // 【修复】Windows 上检查 openclaw.mjs，使用 node 运行
+    const mjsPath = path.join(root, 'openclaw.mjs');
+    if (fs.existsSync(mjsPath)) {
+      return { type: 'win32-mjs', path: mjsPath };
     }
     
     // 如果找不到具体文件，返回命令名
@@ -1244,7 +1318,7 @@ async function getGatewayStatus() {
       const checkPort = () => {
         const netCmd = isWin
           ? 'netstat -an | findstr "18789"'
-          : 'netstat -tlnp 2>/dev/null | grep "18789" 2>/dev/null || lsof -i :18789 2>/dev/null';
+          : 'netstat -tlnp 2>/dev/null | grep "18789" || lsof -i :18789';
         
         return new Promise((resolvePort) => {
           exec(netCmd, { windowsHide: true }, (error, stdout) => {
@@ -2241,7 +2315,7 @@ async function initializeOpenClawConfig() {
       generateIfMissing: false  // 初始化时不生成新 token，优先保留现有的
     });
     
-    newConfig = tokenResult.config;
+    // 注意：ensureGatewayToken 直接修改 newConfig 对象，不需要重新赋值
     
     // 根据 token 状态记录日志
     if (tokenResult.status === 'missing') {
@@ -4176,6 +4250,7 @@ ipcMain.handle('run-gateway-command', async (event, cmd) => {
     let command;
     let spawnArgs;
     let useShell = isWin;
+    let cwd = undefined;
     
     if (cmdInfo.type === 'wsl') {
       // WSL 模式: wsl openclaw <args>
@@ -4183,6 +4258,14 @@ ipcMain.handle('run-gateway-command', async (event, cmd) => {
       spawnArgs = [openclawCmd, ...args];
       useShell = false;
       addLog('info', `[Debug] 执行 WSL 命令: wsl ${openclawCmd} ${args.join(' ')}`, '', 'system');
+    } else if (cmdInfo.type === 'win32-mjs') {
+      // 【修复】Windows 上使用 node 运行 openclaw.mjs
+      command = 'node';
+      spawnArgs = [cmdInfo.path, ...args];
+      useShell = false;
+      // 【修复】设置工作目录为 openclaw.mjs 所在目录
+      cwd = path.dirname(cmdInfo.path);
+      addLog('info', `[Debug] 执行 Node 命令: node ${cmdInfo.path} ${args.join(' ')} (cwd: ${cwd})`, '', 'system');
     } else {
       // Windows 本地或 Unix
       command = typeof cmdInfo.path === 'string' ? cmdInfo.path : openclawCmd;
@@ -4190,12 +4273,19 @@ ipcMain.handle('run-gateway-command', async (event, cmd) => {
       addLog('info', `[Debug] 执行命令: ${command} ${args.join(' ')}`, '', 'system');
     }
 
-    const proc = spawn(command, spawnArgs, {
+    const spawnOptions = {
       windowsHide: true,
       shell: useShell,
       timeout: 30000,
       env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }
-    });
+    };
+    
+    // 【修复】如果有工作目录，添加到选项中
+    if (cwd) {
+      spawnOptions.cwd = cwd;
+    }
+
+    const proc = spawn(command, spawnArgs, spawnOptions);
 
     let output = '';
     let errorOutput = '';
@@ -4213,17 +4303,55 @@ ipcMain.handle('run-gateway-command', async (event, cmd) => {
     }, 30000);
 
     proc.stdout?.on('data', (data) => {
-      output += data.toString();
+      // 【修复】Windows 上尝试多种编码解码
+      if (isWin) {
+        try {
+          // 先尝试 UTF-8
+          const utf8Str = data.toString('utf8');
+          // 检查是否包含乱码特征（常见乱码字符）
+          if (/[锟斤拷烫]|�/.test(utf8Str)) {
+            // 如果是乱码，尝试 GBK
+            output += iconv.decode(data, 'gbk');
+          } else {
+            output += utf8Str;
+          }
+        } catch (e) {
+          // 解码失败，使用原始字符串
+          output += data.toString();
+        }
+      } else {
+        output += data.toString();
+      }
     });
 
     proc.stderr?.on('data', (data) => {
-      errorOutput += data.toString();
+      // 【修复】Windows 上尝试多种编码解码
+      if (isWin) {
+        try {
+          // 先尝试 UTF-8
+          const utf8Str = data.toString('utf8');
+          // 检查是否包含乱码特征
+          if (/[锟斤拷烫]|�/.test(utf8Str)) {
+            // 如果是乱码，尝试 GBK
+            errorOutput += iconv.decode(data, 'gbk');
+          } else {
+            errorOutput += utf8Str;
+          }
+        } catch (e) {
+          // 解码失败，使用原始字符串
+          errorOutput += data.toString();
+        }
+      } else {
+        errorOutput += data.toString();
+      }
     });
 
     proc.on('close', (code) => {
       clearTimeout(timeoutId);
       const fullOutput = output + (errorOutput ? '\n[stderr] ' + errorOutput : '');
-      resolve({ success: code === 0, output: fullOutput || '命令执行完成（无输出）' });
+      // 【修复】返回实际执行的命令路径，用于前端显示
+      const executedCmd = cmdInfo.type === 'win32-mjs' ? `node "${cmdInfo.path}"` : (cmdInfo.path || 'openclaw');
+      resolve({ success: code === 0, output: fullOutput || '命令执行完成（无输出）', executedCmd });
     });
 
     proc.on('error', (err) => {
@@ -4264,11 +4392,39 @@ ipcMain.handle('run-system-command', async (event, cmd) => {
     }, 300000);
 
     proc.stdout?.on('data', (data) => {
-      output += data.toString();
+      // 【修复】Windows 上尝试多种编码解码
+      if (isWin) {
+        try {
+          const utf8Str = data.toString('utf8');
+          if (/[锟斤拷烫]|�/.test(utf8Str)) {
+            output += iconv.decode(data, 'gbk');
+          } else {
+            output += utf8Str;
+          }
+        } catch (e) {
+          output += data.toString();
+        }
+      } else {
+        output += data.toString();
+      }
     });
 
     proc.stderr?.on('data', (data) => {
-      errorOutput += data.toString();
+      // 【修复】Windows 上尝试多种编码解码
+      if (isWin) {
+        try {
+          const utf8Str = data.toString('utf8');
+          if (/[锟斤拷烫]|�/.test(utf8Str)) {
+            errorOutput += iconv.decode(data, 'gbk');
+          } else {
+            errorOutput += utf8Str;
+          }
+        } catch (e) {
+          errorOutput += data.toString();
+        }
+      } else {
+        errorOutput += data.toString();
+      }
     });
 
     proc.on('close', (code) => {
@@ -4425,6 +4581,13 @@ ipcMain.handle('open-system-terminal', async () => {
   try {
     addLog('info', `[Terminal] 正在启动系统终端 [${process.platform}]`, '', 'system');
     
+    // 【修复】获取 OpenClaw 目录
+    const cmdInfo = getOpenClawCommand();
+    let openclawDir = null;
+    if (cmdInfo.type === 'win32-mjs' && cmdInfo.path) {
+      openclawDir = path.dirname(cmdInfo.path);
+    }
+    
     if (isWin) {
       // Windows: 优先使用 WSL（OpenClaw 推荐），其次 PowerShell，最后 CMD
       const { execSync, exec } = require('child_process');
@@ -4438,14 +4601,29 @@ ipcMain.handle('open-system-terminal', async () => {
       } catch (e) {
         // WSL 不可用，尝试 PowerShell
         try {
-          exec('start powershell', { windowsHide: false });
-          addLog('success', '[Terminal] 已启动 PowerShell', '', 'system');
-          return { success: true, terminal: 'PowerShell', command: 'start powershell' };
+          // 【修复】启动 PowerShell 并切换到 OpenClaw 目录
+          if (openclawDir) {
+            const psCommand = `start powershell -NoExit -Command "Set-Location '${openclawDir}'"`;
+            exec(psCommand, { windowsHide: false });
+            addLog('success', `[Terminal] 已启动 PowerShell (目录: ${openclawDir})`, '', 'system');
+            return { success: true, terminal: 'PowerShell', command: psCommand };
+          } else {
+            exec('start powershell', { windowsHide: false });
+            addLog('success', '[Terminal] 已启动 PowerShell', '', 'system');
+            return { success: true, terminal: 'PowerShell', command: 'start powershell' };
+          }
         } catch (e2) {
           // 使用 CMD
-          exec('start cmd', { windowsHide: false });
-          addLog('success', '[Terminal] 已启动 CMD', '', 'system');
-          return { success: true, terminal: 'CMD', command: 'start cmd' };
+          if (openclawDir) {
+            const cmdCommand = `start cmd /K "cd /d ${openclawDir}"`;
+            exec(cmdCommand, { windowsHide: false });
+            addLog('success', `[Terminal] 已启动 CMD (目录: ${openclawDir})`, '', 'system');
+            return { success: true, terminal: 'CMD', command: cmdCommand };
+          } else {
+            exec('start cmd', { windowsHide: false });
+            addLog('success', '[Terminal] 已启动 CMD', '', 'system');
+            return { success: true, terminal: 'CMD', command: 'start cmd' };
+          }
         }
       }
     } else if (isMac) {
@@ -4502,20 +4680,43 @@ ipcMain.handle('open-system-terminal-with-command', async (event, command) => {
     const { exec, execSync } = require('child_process');
 
     if (isWin) {
+      // 【修复】获取 OpenClaw 目录和命令
+      const cmdInfo = getOpenClawCommand();
+      let openclawDir = null;
+      let winCommand = command;
+      
+      if (cmdInfo.type === 'win32-mjs' && cmdInfo.path) {
+        openclawDir = path.dirname(cmdInfo.path);
+        // 将 openclaw 替换为 node openclaw.mjs
+        winCommand = command.replace(/\bopenclaw\b/g, `node "${cmdInfo.path}"`);
+      }
+      
       // Windows: 使用 PowerShell 或 CMD 运行命令
       // 【v2.7.5】转义命令中的双引号，防止破坏命令结构
-      const escapedCommand = command.replace(/"/g, '\"');
+      const escapedCommand = winCommand.replace(/"/g, '\"');
       try {
         // 尝试使用 PowerShell
-        const psCommand = `start powershell -NoExit -Command "${escapedCommand}; Write-Host '命令执行完成，按 Enter 键继续...'; Read-Host"`;
+        let psCommand;
+        if (openclawDir) {
+          // 【修复】先切换到 OpenClaw 目录，再执行命令
+          psCommand = `start powershell -NoExit -Command "Set-Location '${openclawDir}'; ${escapedCommand}; Write-Host '命令执行完成，按 Enter 键继续...'; Read-Host"`;
+        } else {
+          psCommand = `start powershell -NoExit -Command "${escapedCommand}; Write-Host '命令执行完成，按 Enter 键继续...'; Read-Host"`;
+        }
         exec(psCommand, { windowsHide: false });
-        addLog('success', `[Terminal] 已在 PowerShell 中启动命令: ${command}`, '', 'system');
+        addLog('success', `[Terminal] 已在 PowerShell 中启动命令: ${winCommand}`, '', 'system');
         return { success: true, terminal: 'PowerShell', command: psCommand };
       } catch (e) {
         // 使用 CMD
-        const cmdCommand = `start cmd /k "${escapedCommand} && echo 命令执行完成，按任意键继续... && pause"`;
+        let cmdCommand;
+        if (openclawDir) {
+          // 【修复】先切换到 OpenClaw 目录，再执行命令
+          cmdCommand = `start cmd /k "cd /d ${openclawDir} && ${escapedCommand} && echo 命令执行完成，按任意键继续... && pause"`;
+        } else {
+          cmdCommand = `start cmd /k "${escapedCommand} && echo 命令执行完成，按任意键继续... && pause"`;
+        }
         exec(cmdCommand, { windowsHide: false });
-        addLog('success', `[Terminal] 已在 CMD 中启动命令: ${command}`, '', 'system');
+        addLog('success', `[Terminal] 已在 CMD 中启动命令: ${winCommand}`, '', 'system');
         return { success: true, terminal: 'CMD', command: cmdCommand };
       }
     } else if (isMac) {
@@ -5244,36 +5445,51 @@ ipcMain.handle('verifyAuthConfig', async () => {
 // 验证 Gateway 进程
 ipcMain.handle('verifyGatewayProcess', async () => {
   try {
-    const { exec } = require('child_process');
+    const { exec, execSync } = require('child_process');
     const { promisify } = require('util');
     const execAsync = promisify(exec);
     
     // 【修复】添加跨平台支持
-    let command;
+    let running = false;
+    
     if (isWin) {
-      // Windows: 使用 tasklist
-      command = 'tasklist | findstr "openclaw"';
+      // Windows: 使用多种方法检测进程
+      try {
+        // 方法1: 使用 wmic 检测 node 进程（OpenClaw 通常是 node 进程）
+        const { stdout } = await execAsync('wmic process where "name like \'%node%\'" get commandline /format:list');
+        running = stdout.toLowerCase().includes('openclaw') || stdout.toLowerCase().includes('gateway');
+        
+        // 方法2: 如果方法1失败，尝试检测端口
+        if (!running) {
+          try {
+            execSync('netstat -an | findstr "3000"', { stdio: 'pipe' });
+            running = true;
+          } catch (e) {
+            // 端口未开放
+          }
+        }
+      } catch (e) {
+        // wmic 失败，回退到端口检测
+        try {
+          execSync('netstat -an | findstr "3000"', { stdio: 'pipe' });
+          running = true;
+        } catch (e) {
+          running = false;
+        }
+      }
     } else if (isMac) {
       // macOS: 使用 pgrep
-      command = 'pgrep -f "openclaw.*gateway" || echo "not found"';
+      const command = 'pgrep -f "openclaw.*gateway" || echo "not found"';
+      const { stdout } = await execAsync(command);
+      running = stdout.trim() !== 'not found' && stdout.trim() !== '';
     } else {
       // Linux: 使用 pgrep
-      command = 'pgrep -f "openclaw.*gateway" || echo "not found"';
+      const command = 'pgrep -f "openclaw.*gateway" || echo "not found"';
+      const { stdout } = await execAsync(command);
+      running = stdout.trim() !== 'not found' && stdout.trim() !== '';
     }
     
-    try {
-      const { stdout } = await execAsync(command);
-      let running;
-      if (isWin) {
-        running = stdout.trim().length > 0;
-      } else {
-        running = stdout.trim() !== 'not found' && stdout.trim() !== '';
-      }
-      return { success: true, running };
-    } catch (execError) {
-      // 命令执行失败（如进程不存在），返回未运行
-      return { success: true, running: false };
-    }
+    return { success: true, running };
   } catch (error) {
     return { success: false, running: false, error: error.message };
   }
