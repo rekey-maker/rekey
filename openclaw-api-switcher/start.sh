@@ -1,5 +1,6 @@
 #!/bin/bash
 # OpenClaw API Switcher Launcher for Linux/macOS
+# 【修复】直接启动 electron，避免 npm/node 环境冲突
 
 # 检测终端是否支持 Unicode/Emoji
 supports_unicode() {
@@ -31,22 +32,31 @@ fi
 
 cd "$(dirname "$0")"
 
-# 检查 npm
-if ! command -v npm &> /dev/null; then
-    echo "${ICON_ERROR} Error: npm not found. Please install Node.js"
-    echo "${ICON_ARROW} https://nodejs.org/"
+# 【修复】直接启动 electron，而不是通过 npm
+ELECTRON_PATH=""
+
+# 检测平台
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    ELECTRON_PATH="./node_modules/.bin/electron"
+elif [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
+    # Linux
+    ELECTRON_PATH="./node_modules/.bin/electron"
+else
+    echo "${ICON_ERROR} Error: Unsupported platform: $OSTYPE"
     exit 1
 fi
 
-# 安装依赖
-if [ ! -d "node_modules" ]; then
-    echo "${ICON_PACKAGE} Installing dependencies..."
-    npm install
+# 检查 electron 是否存在
+if [ ! -f "$ELECTRON_PATH" ]; then
+    echo "${ICON_ERROR} Error: Electron not found at $ELECTRON_PATH"
+    echo "${ICON_ARROW} Please run: npm install"
+    exit 1
 fi
 
-# 【v2.7.5】启动应用（后台运行并脱离终端）
+# 【修复】启动应用（后台运行并脱离终端）
 echo "${ICON_ROCKET} Starting OpenClaw API Switcher..."
-nohup npm start > /dev/null 2>&1 &
+nohup "$ELECTRON_PATH" . > /dev/null 2>&1 &
 disown
 
 # 等待应用启动
