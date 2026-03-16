@@ -4,6 +4,7 @@
   "description": "OpenClaw API Switcher - 高级模型切换与诊断工具",
   "main": "main.js",
   "scripts": {
+    "install:start": "npm install && npm start",
     "start": "electron .",
     "build": "electron-builder"
   },
